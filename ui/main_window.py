@@ -114,6 +114,14 @@ class MainWindow:
 
         self.client_calls_rows_frame.bind("<Configure>", lambda event: self._resize_client_call_rows())
 
+        stamp_label = tk.Label(
+            frame,
+            text="Builded by sega",
+            font=("TkDefaultFont", 8, "italic"),
+            fg="#555555",
+        )
+        stamp_label.grid(row=2, column=0, pady=(10, 0))
+
         self.device_var.trace_add("write", self._device_changed)
         self.client_calls_device_var.trace_add("write", self._client_calls_device_changed)
 
