@@ -22,12 +22,14 @@ class JsonRepository:
             return AppSettings(
                 selected_device=data.get("selected_device", ""),
                 volume=data.get("volume", 0.8),
+                notification_volume=data.get("notification_volume", data.get("volume", 0.8)),
                 notification_sound_file_path=data.get("notification_sound_file_path", ""),
                 scheduler_notification_enabled=data.get("scheduler_notification_enabled", False),
                 client_calls_notification_enabled=data.get("client_calls_notification_enabled", False),
                 client_calls_file_path=data.get("client_calls_file_path", ""),
                 client_calls_selected_device=data.get("client_calls_selected_device", ""),
                 client_calls_volume=data.get("client_calls_volume", 0.8),
+                client_calls_speech_rate=data.get("client_calls_speech_rate", 1.0),
                 client_calls_interval_seconds=data.get("client_calls_interval_seconds", 5.0),
                 scheduler_weekdays=self._normalize_weekdays(data.get("scheduler_weekdays")),
             )

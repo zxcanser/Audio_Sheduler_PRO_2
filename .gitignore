@@ -6,6 +6,7 @@ __pycache__/
 config.json
 schedule.json
 output.txt
+client_calls.log
 
 # Virtual environments
 .venv/

@@ -2,10 +2,12 @@ import hashlib
 import os
 import time
 from collections import deque
+from datetime import datetime
 from typing import Callable, Deque, List, Optional
 
 import tkinter as tk
 
+from config import CLIENT_CALLS_LOG_FILE
 from models import ClientCall
 from services.playback_coordinator import PlaybackCoordinator, PlaybackTask
 from services.speech_synthesizer import SpeechSynthesizerService
@@ -20,6 +22,8 @@ class ClientCallService:
         get_source_path: Callable[[], str],
         get_device_name: Callable[[], str],
         get_volume: Callable[[], float],
+        get_speech_rate: Callable[[], float],
+        get_notification_volume: Callable[[], float],
         get_notification_sound_path: Callable[[], str],
         is_notification_enabled: Callable[[], bool],
         on_state_change: Callable[[Optional[ClientCall], List[ClientCall], float], None],
@@ -31,6 +35,8 @@ class ClientCallService:
         self.get_source_path = get_source_path
         self.get_device_name = get_device_name
         self.get_volume = get_volume
+        self.get_speech_rate = get_speech_rate
+        self.get_notification_volume = get_notification_volume
         self.get_notification_sound_path = get_notification_sound_path
         self.is_notification_enabled = is_notification_enabled
         self.on_state_change = on_state_change
@@ -79,6 +85,7 @@ class ClientCallService:
                     self._last_signature = signature
                     calls = self._parse_calls(raw_text)
                     if calls:
+                        self._append_calls_to_log(calls)
                         self._queue.extend(calls)
                         self._emit_state_change()
                         self._play_next_if_idle()
@@ -135,6 +142,16 @@ class ClientCallService:
 
         return calls
 
+    def _append_calls_to_log(self, calls: List[ClientCall]) -> None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            with open(CLIENT_CALLS_LOG_FILE, "a", encoding="utf-8") as log_file:
+                for call in calls:
+                    log_file.write(f"[{timestamp}] {call.display_text}\n")
+        except OSError as exc:
+            self.on_error(f"Не удалось записать лог вызовов: {exc}")
+
     def _play_next_if_idle(self) -> None:
         if self._playback_requested or self._current_call is not None or not self._queue:
             return
@@ -145,7 +162,10 @@ class ClientCallService:
         self._emit_state_change()
 
         try:
-            temp_file = self.synthesizer.synthesize_to_file(next_call.speech_text)
+            temp_file = self.synthesizer.synthesize_to_file(
+                next_call.speech_text,
+                speech_rate=self.get_speech_rate(),
+            )
         except Exception as exc:
             self._current_call = None
             self._playback_requested = False
@@ -178,7 +198,7 @@ class ClientCallService:
             self.playback_coordinator.enqueue(
                 PlaybackTask(
                     file_path=notification_sound_path,
-                    volume=self.get_volume(),
+                    volume=self.get_notification_volume(),
                     device_name=self.get_device_name(),
                     on_error=lambda msg: self.root.after(0, lambda: self._handle_playback_error(msg)),
                 )

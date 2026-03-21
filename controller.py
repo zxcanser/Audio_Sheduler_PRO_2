@@ -49,6 +49,8 @@ class AudioSchedulerController:
             get_source_path=self.window.get_client_calls_file,
             get_device_name=lambda: self.settings.client_calls_selected_device,
             get_volume=lambda: self.settings.client_calls_volume,
+            get_speech_rate=lambda: self.settings.client_calls_speech_rate,
+            get_notification_volume=lambda: self.settings.notification_volume,
             get_notification_sound_path=lambda: self.settings.notification_sound_file_path,
             is_notification_enabled=lambda: self.settings.client_calls_notification_enabled,
             on_state_change=self._refresh_client_calls_queue,
@@ -66,9 +68,11 @@ class AudioSchedulerController:
         self.window.on_refresh_devices = self.refresh_devices
         self.window.on_device_change = self.change_device
         self.window.on_volume_change = self.change_volume
+        self.window.on_notification_volume_change = self.change_notification_volume
         self.window.on_select_entry = self.load_selected_entry_into_form
         self.window.on_browse_client_calls_file = self.browse_client_calls_file
         self.window.on_client_calls_volume_change = self.change_client_calls_volume
+        self.window.on_client_calls_speech_rate_change = self.change_client_calls_speech_rate
         self.window.on_client_calls_device_change = self.change_client_calls_device
         self.window.on_client_calls_interval_change = self.change_client_calls_interval
         self.window.on_scheduler_weekdays_change = self.change_scheduler_weekdays
@@ -80,10 +84,12 @@ class AudioSchedulerController:
 
     def _load_initial_state(self) -> None:
         self.window.set_volume(self.settings.volume)
+        self.window.set_notification_volume(self.settings.notification_volume)
         self.window.set_notification_sound_file(self.settings.notification_sound_file_path)
         self.window.set_scheduler_notification_enabled(self.settings.scheduler_notification_enabled)
         self.window.set_client_calls_notification_enabled(self.settings.client_calls_notification_enabled)
         self.window.set_client_calls_volume(self.settings.client_calls_volume)
+        self.window.set_client_calls_speech_rate(self.settings.client_calls_speech_rate)
         self.window.set_client_calls_file(self.settings.client_calls_file_path)
         self.window.set_client_calls_interval(self.settings.client_calls_interval_seconds)
         self.window.set_scheduler_weekdays(self.settings.scheduler_weekdays)
@@ -213,7 +219,7 @@ class AudioSchedulerController:
             ),
             notification_enabled=self.settings.scheduler_notification_enabled,
             notification_device_name=self.settings.selected_device,
-            notification_volume=self.settings.volume,
+            notification_volume=self.settings.notification_volume,
         )
 
     def stop_audio(self) -> None:
@@ -225,6 +231,9 @@ class AudioSchedulerController:
     def change_volume(self, volume: float) -> None:
         self._update_setting("volume", volume)
 
+    def change_notification_volume(self, volume: float) -> None:
+        self._update_setting("notification_volume", volume)
+
     def _run_scheduled_entry(self, entry) -> None:
         self._play_file(entry.file_path)
 
@@ -233,6 +242,9 @@ class AudioSchedulerController:
 
     def change_client_calls_volume(self, volume: float) -> None:
         self._update_setting("client_calls_volume", volume)
+
+    def change_client_calls_speech_rate(self, speech_rate: float) -> None:
+        self._update_setting("client_calls_speech_rate", speech_rate)
 
     def change_client_calls_interval(self) -> None:
         if not self._sync_client_calls_interval(show_errors=True):

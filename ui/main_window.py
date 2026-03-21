@@ -29,6 +29,8 @@ class MainWindow:
         self.minutes_var = tk.StringVar()
         self.volume_var = tk.DoubleVar(value=0.8)
         self.volume_display_var = tk.StringVar(value="0.8")
+        self.notification_volume_var = tk.DoubleVar(value=0.8)
+        self.notification_volume_display_var = tk.StringVar(value="0.8")
         self.device_var = tk.StringVar()
         self.notification_sound_file_path = tk.StringVar()
         self.notification_sound_display = tk.StringVar()
@@ -38,6 +40,8 @@ class MainWindow:
         self.client_calls_file_display = tk.StringVar()
         self.client_calls_volume_var = tk.DoubleVar(value=0.8)
         self.client_calls_volume_display_var = tk.StringVar(value="0.8")
+        self.client_calls_speech_rate_var = tk.DoubleVar(value=1.0)
+        self.client_calls_speech_rate_display_var = tk.StringVar(value="1.0")
         self.client_calls_device_var = tk.StringVar()
         self.client_calls_interval_var = tk.StringVar(value="5")
         self.scheduler_weekday_vars: dict[int, tk.BooleanVar] = {
@@ -57,9 +61,11 @@ class MainWindow:
         self.on_refresh_devices: Optional[Callable[[], None]] = None
         self.on_device_change: Optional[Callable[[str], None]] = None
         self.on_volume_change: Optional[Callable[[float], None]] = None
+        self.on_notification_volume_change: Optional[Callable[[float], None]] = None
         self.on_select_entry: Optional[Callable[[], None]] = None
         self.on_browse_client_calls_file: Optional[Callable[[], None]] = None
         self.on_client_calls_volume_change: Optional[Callable[[float], None]] = None
+        self.on_client_calls_speech_rate_change: Optional[Callable[[float], None]] = None
         self.on_client_calls_device_change: Optional[Callable[[str], None]] = None
         self.on_client_calls_interval_change: Optional[Callable[[], None]] = None
         self.on_scheduler_weekdays_change: Optional[Callable[[], None]] = None
@@ -230,6 +236,21 @@ class MainWindow:
         ).pack(side="left")
         tk.Label(calls_volume_frame, textvariable=self.client_calls_volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
 
+        tk.Label(volumes_frame, text="Уведомление:").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        notification_volume_frame = tk.Frame(volumes_frame)
+        notification_volume_frame.grid(row=2, column=1, sticky="w", padx=5, pady=(10, 0))
+        tk.Scale(
+            notification_volume_frame,
+            from_=0.0,
+            to=1.0,
+            resolution=0.1,
+            orient="horizontal",
+            variable=self.notification_volume_var,
+            command=self._notification_volume_changed,
+            showvalue=False
+        ).pack(side="left")
+        tk.Label(notification_volume_frame, textvariable=self.notification_volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
+
         weekdays_frame = tk.LabelFrame(content, text="Дни работы планировщика", padx=10, pady=10)
         weekdays_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
 
@@ -276,6 +297,21 @@ class MainWindow:
         interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
         interval_entry.bind("<Return>", self._client_calls_interval_submitted)
 
+        tk.Label(queue_frame, text="Скорость речи:").grid(row=2, column=0, sticky="w", pady=(12, 0))
+        speech_rate_frame = tk.Frame(queue_frame)
+        speech_rate_frame.grid(row=2, column=1, columnspan=2, sticky="w", padx=5, pady=(12, 0))
+        tk.Scale(
+            speech_rate_frame,
+            from_=0.5,
+            to=1.5,
+            resolution=0.1,
+            orient="horizontal",
+            variable=self.client_calls_speech_rate_var,
+            command=self._client_calls_speech_rate_changed,
+            showvalue=False
+        ).pack(side="left")
+        tk.Label(speech_rate_frame, textvariable=self.client_calls_speech_rate_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
+
         tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=5, column=0, sticky="e", pady=(18, 0))
         self._client_calls_settings_window = window
         self._fit_window_to_content(window)
@@ -312,6 +348,12 @@ class MainWindow:
 
     def _client_calls_volume_changed(self, value: str) -> None:
         self._handle_volume_change(value, self.client_calls_volume_display_var, self.on_client_calls_volume_change)
+
+    def _client_calls_speech_rate_changed(self, value: str) -> None:
+        self._handle_volume_change(value, self.client_calls_speech_rate_display_var, self.on_client_calls_speech_rate_change)
+
+    def _notification_volume_changed(self, value: str) -> None:
+        self._handle_volume_change(value, self.notification_volume_display_var, self.on_notification_volume_change)
 
     def _client_calls_device_changed(self, *args) -> None:
         if self.on_client_calls_device_change:
@@ -479,6 +521,14 @@ class MainWindow:
     def set_client_calls_volume(self, value: float) -> None:
         self.client_calls_volume_var.set(value)
         self.client_calls_volume_display_var.set(f"{value:.1f}")
+
+    def set_client_calls_speech_rate(self, value: float) -> None:
+        self.client_calls_speech_rate_var.set(value)
+        self.client_calls_speech_rate_display_var.set(f"{value:.1f}")
+
+    def set_notification_volume(self, value: float) -> None:
+        self.notification_volume_var.set(value)
+        self.notification_volume_display_var.set(f"{value:.1f}")
 
     def get_client_calls_interval(self) -> str:
         return self.client_calls_interval_var.get().strip()
