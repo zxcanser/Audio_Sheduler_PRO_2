@@ -1,6 +1,6 @@
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -24,10 +24,14 @@ class ScheduleEntry:
 class AppSettings:
     selected_device: str = ""
     volume: float = 0.8
+    notification_sound_file_path: str = ""
+    scheduler_notification_enabled: bool = False
+    client_calls_notification_enabled: bool = False
     client_calls_file_path: str = ""
     client_calls_selected_device: str = ""
     client_calls_volume: float = 0.8
     client_calls_interval_seconds: float = 5.0
+    scheduler_weekdays: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6])
 
 
 @dataclass

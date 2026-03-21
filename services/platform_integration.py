@@ -144,8 +144,8 @@ class PlatformIntegration:
         import pystray
 
         menu = pystray.Menu(
-            pystray.MenuItem("Show", lambda icon, item: self.show_window()),
-            pystray.MenuItem("Quit", lambda icon, item: self.quit_application()),
+            pystray.MenuItem("Открыть окно планировщика", lambda icon, item: self.show_window()),
+            pystray.MenuItem("Сохранить и закрыть", lambda icon, item: self.quit_application()),
         )
         self._tray_icon = pystray.Icon(
             "audio_scheduler",
@@ -186,11 +186,11 @@ class PlatformIntegration:
 
         menu = NSMenu.alloc().init()
 
-        show_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Show", "showWindow:", "")
+        show_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Открыть окно планировщика", "showWindow:", "")
         show_item.setTarget_(self._status_delegate)
         menu.addItem_(show_item)
 
-        quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit", "quitApp:", "q")
+        quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Сохранить и закрыть", "quitApp:", "q")
         quit_item.setTarget_(self._status_delegate)
         menu.addItem_(quit_item)
 

@@ -9,10 +9,12 @@ class SchedulerService:
         self,
         tk_root,
         get_entries: Callable[[], List[ScheduleEntry]],
+        get_active_weekdays: Callable[[], List[int]],
         on_trigger: Callable[[ScheduleEntry], None],
     ):
         self.root = tk_root
         self.get_entries = get_entries
+        self.get_active_weekdays = get_active_weekdays
         self.on_trigger = on_trigger
         self._last_run: dict[str, date] = {}
         self._running = False
@@ -31,6 +33,11 @@ class SchedulerService:
         now = datetime.now()
         current_time = now.strftime("%H:%M")
         today = now.date()
+        active_weekdays = set(self.get_active_weekdays())
+
+        if now.weekday() not in active_weekdays:
+            self.root.after(1000, self._tick)
+            return
 
         for entry in self.get_entries():
             if not entry.enabled:

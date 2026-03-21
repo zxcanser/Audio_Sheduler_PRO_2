@@ -8,6 +8,16 @@ from config import WINDOW_TITLE
 
 
 class MainWindow:
+    WEEKDAY_LABELS: list[tuple[int, str]] = [
+        (0, "Пн"),
+        (1, "Вт"),
+        (2, "Ср"),
+        (3, "Чт"),
+        (4, "Пт"),
+        (5, "Сб"),
+        (6, "Вс"),
+    ]
+
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(WINDOW_TITLE)
@@ -20,12 +30,19 @@ class MainWindow:
         self.volume_var = tk.DoubleVar(value=0.8)
         self.volume_display_var = tk.StringVar(value="0.8")
         self.device_var = tk.StringVar()
+        self.notification_sound_file_path = tk.StringVar()
+        self.notification_sound_display = tk.StringVar()
+        self.scheduler_notification_var = tk.BooleanVar(value=False)
+        self.client_calls_notification_var = tk.BooleanVar(value=False)
         self.client_calls_file_path = tk.StringVar()
         self.client_calls_file_display = tk.StringVar()
         self.client_calls_volume_var = tk.DoubleVar(value=0.8)
         self.client_calls_volume_display_var = tk.StringVar(value="0.8")
         self.client_calls_device_var = tk.StringVar()
         self.client_calls_interval_var = tk.StringVar(value="5")
+        self.scheduler_weekday_vars: dict[int, tk.BooleanVar] = {
+            day: tk.BooleanVar(value=True) for day, _ in self.WEEKDAY_LABELS
+        }
         self._current_client_call: Optional[ClientCall] = None
         self._queued_client_calls: list[ClientCall] = []
         self._current_client_call_progress = 0.0
@@ -37,6 +54,7 @@ class MainWindow:
         self.on_delete: Optional[Callable[[], None]] = None
         self.on_browse: Optional[Callable[[], None]] = None
         self.on_play: Optional[Callable[[], None]] = None
+        self.on_refresh_devices: Optional[Callable[[], None]] = None
         self.on_device_change: Optional[Callable[[str], None]] = None
         self.on_volume_change: Optional[Callable[[float], None]] = None
         self.on_select_entry: Optional[Callable[[], None]] = None
@@ -44,6 +62,10 @@ class MainWindow:
         self.on_client_calls_volume_change: Optional[Callable[[float], None]] = None
         self.on_client_calls_device_change: Optional[Callable[[str], None]] = None
         self.on_client_calls_interval_change: Optional[Callable[[], None]] = None
+        self.on_scheduler_weekdays_change: Optional[Callable[[], None]] = None
+        self.on_browse_notification_sound_file: Optional[Callable[[], None]] = None
+        self.on_scheduler_notification_toggle: Optional[Callable[[], None]] = None
+        self.on_client_calls_notification_toggle: Optional[Callable[[], None]] = None
         self.on_close: Optional[Callable[[], None]] = None
         self.on_window_unmap: Optional[Callable[[], None]] = None
 
@@ -61,12 +83,12 @@ class MainWindow:
         tk.Entry(scheduler_frame, textvariable=self.selected_file_display, width=50, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
         tk.Button(scheduler_frame, text="Выбрать", width=12, command=self._browse_clicked).grid(row=0, column=2, padx=5)
 
-        tk.Label(scheduler_frame, text="Время (HH:MM):").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        tk.Label(scheduler_frame, text="Время (ЧЧ:ММ):").grid(row=1, column=0, sticky="w", pady=(10, 0))
 
         time_frame = tk.Frame(scheduler_frame)
         time_frame.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
         tk.Entry(time_frame, textvariable=self.hours_var, width=2).pack(side="left")
-        tk.Label(time_frame, text=":").pack(side="left", padx=1)
+        tk.Label(time_frame, text=":").pack(side="left")
         tk.Entry(time_frame, textvariable=self.minutes_var, width=2).pack(side="left")
 
         tk.Button(scheduler_frame, text="Добавить", width=12, command=self._add_clicked).grid(row=1, column=2, padx=5, pady=(10, 0))
@@ -162,6 +184,9 @@ class MainWindow:
         devices_frame = tk.LabelFrame(content, text="Аудио устройства", padx=10, pady=10)
         devices_frame.grid(row=0, column=0, sticky="ew")
         devices_frame.columnconfigure(1, weight=1)
+        devices_frame.columnconfigure(2, weight=0)
+
+        tk.Button(devices_frame, text="Обновить устройства", width=18, command=self._refresh_devices_clicked).grid(row=0, column=2, sticky="ne", padx=(10, 0))
 
         tk.Label(devices_frame, text="Планировщик:").grid(row=0, column=0, sticky="w")
         self.device_menu = tk.OptionMenu(devices_frame, self.device_var, "")
@@ -205,8 +230,40 @@ class MainWindow:
         ).pack(side="left")
         tk.Label(calls_volume_frame, textvariable=self.client_calls_volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
 
+        weekdays_frame = tk.LabelFrame(content, text="Дни работы планировщика", padx=10, pady=10)
+        weekdays_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+
+        for column, (day, label) in enumerate(self.WEEKDAY_LABELS):
+            tk.Checkbutton(
+                weekdays_frame,
+                text=label,
+                variable=self.scheduler_weekday_vars[day],
+                command=self._scheduler_weekdays_changed,
+            ).grid(row=0, column=column, padx=4, sticky="w")
+
+        notification_frame = tk.LabelFrame(content, text="Звук уведомления", padx=10, pady=10)
+        notification_frame.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        notification_frame.columnconfigure(1, weight=1)
+
+        tk.Label(notification_frame, text="Файл:").grid(row=0, column=0, sticky="w")
+        tk.Entry(notification_frame, textvariable=self.notification_sound_display, width=38, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
+        tk.Button(notification_frame, text="Выбрать", width=12, command=self._browse_notification_sound_file_clicked).grid(row=0, column=2, padx=5)
+
+        tk.Checkbutton(
+            notification_frame,
+            text="Перед планировщиком",
+            variable=self.scheduler_notification_var,
+            command=self._scheduler_notification_toggled,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        tk.Checkbutton(
+            notification_frame,
+            text="Перед очередью вызовов",
+            variable=self.client_calls_notification_var,
+            command=self._client_calls_notification_toggled,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
         queue_frame = tk.LabelFrame(content, text="Очередь", padx=10, pady=10)
-        queue_frame.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        queue_frame.grid(row=4, column=0, sticky="nsew", pady=(12, 0))
         queue_frame.columnconfigure(1, weight=1)
 
         tk.Label(queue_frame, text="Файл данных:").grid(row=0, column=0, sticky="w")
@@ -219,7 +276,7 @@ class MainWindow:
         interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
         interval_entry.bind("<Return>", self._client_calls_interval_submitted)
 
-        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=3, column=0, sticky="e", pady=(18, 0))
+        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=5, column=0, sticky="e", pady=(18, 0))
         self._client_calls_settings_window = window
         self._fit_window_to_content(window)
 
@@ -245,6 +302,14 @@ class MainWindow:
         if self.on_browse_client_calls_file:
             self.on_browse_client_calls_file()
 
+    def _refresh_devices_clicked(self) -> None:
+        if self.on_refresh_devices:
+            self.on_refresh_devices()
+
+    def _browse_notification_sound_file_clicked(self) -> None:
+        if self.on_browse_notification_sound_file:
+            self.on_browse_notification_sound_file()
+
     def _client_calls_volume_changed(self, value: str) -> None:
         self._handle_volume_change(value, self.client_calls_volume_display_var, self.on_client_calls_volume_change)
 
@@ -259,6 +324,18 @@ class MainWindow:
     def _client_calls_interval_submitted(self, event: tk.Event) -> str:
         self._client_calls_interval_changed()
         return "break"
+
+    def _scheduler_weekdays_changed(self) -> None:
+        if self.on_scheduler_weekdays_change:
+            self.on_scheduler_weekdays_change()
+
+    def _scheduler_notification_toggled(self) -> None:
+        if self.on_scheduler_notification_toggle:
+            self.on_scheduler_notification_toggle()
+
+    def _client_calls_notification_toggled(self) -> None:
+        if self.on_client_calls_notification_toggle:
+            self.on_client_calls_notification_toggle()
 
 
     def _hide_client_calls_settings_window(self) -> None:
@@ -319,11 +396,17 @@ class MainWindow:
     def set_client_calls_file(self, file_path: str) -> None:
         self._set_file_value(self.client_calls_file_path, self.client_calls_file_display, file_path)
 
+    def set_notification_sound_file(self, file_path: str) -> None:
+        self._set_file_value(self.notification_sound_file_path, self.notification_sound_display, file_path)
+
     def get_selected_file(self) -> str:
         return self.selected_file_path.get()
 
     def get_client_calls_file(self) -> str:
         return self.client_calls_file_path.get()
+
+    def get_notification_sound_file(self) -> str:
+        return self.notification_sound_file_path.get()
 
     def get_time_input(self) -> tuple[str, str]:
         return self.hours_var.get().strip(), self.minutes_var.get().strip()
@@ -332,10 +415,6 @@ class MainWindow:
         hours, minutes = time_str.split(":")
         self.hours_var.set(hours)
         self.minutes_var.set(minutes)
-
-    def clear_time_input(self) -> None:
-        self.hours_var.set("")
-        self.minutes_var.set("")
 
     def get_selected_index(self) -> Optional[int]:
         selected = self.listbox.curselection()
@@ -354,8 +433,7 @@ class MainWindow:
         self._entry_ids_by_index.clear()
 
         for entry in entries:
-            status = "ON" if entry.enabled else "OFF"
-            self.listbox.insert(tk.END, f"{entry.time_str} | {entry.file_name} | {status}")
+            self.listbox.insert(tk.END, f"{entry.time_str} | {entry.file_name}")
             self._entry_ids_by_index.append(entry.entry_id)
 
     def render_client_calls(self, current_call: Optional[ClientCall], queued_calls: List[ClientCall], progress: float) -> None:
@@ -410,6 +488,26 @@ class MainWindow:
             self.client_calls_interval_var.set(str(int(value)))
         else:
             self.client_calls_interval_var.set(str(value).replace(".", ","))
+
+    def get_scheduler_weekdays(self) -> list[int]:
+        return [day for day, _ in self.WEEKDAY_LABELS if self.scheduler_weekday_vars[day].get()]
+
+    def set_scheduler_weekdays(self, weekdays: list[int]) -> None:
+        selected = set(weekdays)
+        for day, _ in self.WEEKDAY_LABELS:
+            self.scheduler_weekday_vars[day].set(day in selected)
+
+    def set_scheduler_notification_enabled(self, enabled: bool) -> None:
+        self.scheduler_notification_var.set(enabled)
+
+    def set_client_calls_notification_enabled(self, enabled: bool) -> None:
+        self.client_calls_notification_var.set(enabled)
+
+    def is_scheduler_notification_enabled(self) -> bool:
+        return self.scheduler_notification_var.get()
+
+    def is_client_calls_notification_enabled(self) -> bool:
+        return self.client_calls_notification_var.get()
 
     def show_error(self, text: str) -> None:
         messagebox.showerror("Ошибка", text)

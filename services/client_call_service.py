@@ -20,6 +20,8 @@ class ClientCallService:
         get_source_path: Callable[[], str],
         get_device_name: Callable[[], str],
         get_volume: Callable[[], float],
+        get_notification_sound_path: Callable[[], str],
+        is_notification_enabled: Callable[[], bool],
         on_state_change: Callable[[Optional[ClientCall], List[ClientCall], float], None],
         on_error: Callable[[str], None],
     ):
@@ -29,6 +31,8 @@ class ClientCallService:
         self.get_source_path = get_source_path
         self.get_device_name = get_device_name
         self.get_volume = get_volume
+        self.get_notification_sound_path = get_notification_sound_path
+        self.is_notification_enabled = is_notification_enabled
         self.on_state_change = on_state_change
         self.on_error = on_error
 
@@ -138,18 +142,37 @@ class ClientCallService:
             self.root.after(0, self._play_next_if_idle)
             return
 
-        self.playback_coordinator.enqueue(
-            PlaybackTask(
-                file_path=temp_file,
-                volume=self.get_volume(),
-                device_name=self.get_device_name(),
-                cleanup_file=True,
-                use_cooldown=True,
-                on_started=lambda duration: self.root.after(0, lambda: self._handle_playback_started(duration)),
-                on_finished=lambda: self.root.after(0, self._handle_playback_finished),
-                on_error=lambda msg: self.root.after(0, lambda: self._handle_playback_error(msg)),
-            )
+        voice_task = PlaybackTask(
+            file_path=temp_file,
+            volume=self.get_volume(),
+            device_name=self.get_device_name(),
+            cleanup_file=True,
+            use_cooldown=True,
+            on_started=lambda duration: self.root.after(0, lambda: self._handle_playback_started(duration)),
+            on_finished=lambda: self.root.after(0, self._handle_playback_finished),
+            on_error=lambda msg: self.root.after(0, lambda: self._handle_playback_error(msg)),
         )
+
+        if self.is_notification_enabled():
+            notification_sound_path = self.get_notification_sound_path().strip()
+            if not notification_sound_path or not os.path.exists(notification_sound_path):
+                self._current_call = None
+                self._playback_requested = False
+                self.on_error("Сначала выберите файл звука уведомления")
+                self._emit_state_change()
+                self.root.after(0, self._play_next_if_idle)
+                return
+
+            self.playback_coordinator.enqueue(
+                PlaybackTask(
+                    file_path=notification_sound_path,
+                    volume=self.get_volume(),
+                    device_name=self.get_device_name(),
+                    on_error=lambda msg: self.root.after(0, lambda: self._handle_playback_error(msg)),
+                )
+            )
+
+        self.playback_coordinator.enqueue(voice_task)
 
     def _handle_playback_started(self, duration: float) -> None:
         self._current_call_duration = duration

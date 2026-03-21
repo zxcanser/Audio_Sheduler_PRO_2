@@ -39,6 +39,7 @@ class AudioSchedulerController:
         self.scheduler = SchedulerService(
             tk_root=root,
             get_entries=self.schedule_manager.get_all,
+            get_active_weekdays=lambda: self.settings.scheduler_weekdays,
             on_trigger=self._run_scheduled_entry
         )
         self.client_call_service = ClientCallService(
@@ -48,6 +49,8 @@ class AudioSchedulerController:
             get_source_path=self.window.get_client_calls_file,
             get_device_name=lambda: self.settings.client_calls_selected_device,
             get_volume=lambda: self.settings.client_calls_volume,
+            get_notification_sound_path=lambda: self.settings.notification_sound_file_path,
+            is_notification_enabled=lambda: self.settings.client_calls_notification_enabled,
             on_state_change=self._refresh_client_calls_queue,
             on_error=lambda message: self.window.show_error(message),
         )
@@ -60,6 +63,7 @@ class AudioSchedulerController:
         self.window.on_add = self.add_schedule
         self.window.on_delete = self.delete_schedule
         self.window.on_play = self.play_selected_or_current
+        self.window.on_refresh_devices = self.refresh_devices
         self.window.on_device_change = self.change_device
         self.window.on_volume_change = self.change_volume
         self.window.on_select_entry = self.load_selected_entry_into_form
@@ -67,14 +71,22 @@ class AudioSchedulerController:
         self.window.on_client_calls_volume_change = self.change_client_calls_volume
         self.window.on_client_calls_device_change = self.change_client_calls_device
         self.window.on_client_calls_interval_change = self.change_client_calls_interval
+        self.window.on_scheduler_weekdays_change = self.change_scheduler_weekdays
+        self.window.on_browse_notification_sound_file = self.browse_notification_sound_file
+        self.window.on_scheduler_notification_toggle = self.change_scheduler_notification_enabled
+        self.window.on_client_calls_notification_toggle = self.change_client_calls_notification_enabled
         self.window.on_close = self.handle_close_request
         self.window.on_window_unmap = self.handle_window_unmap
 
     def _load_initial_state(self) -> None:
         self.window.set_volume(self.settings.volume)
+        self.window.set_notification_sound_file(self.settings.notification_sound_file_path)
+        self.window.set_scheduler_notification_enabled(self.settings.scheduler_notification_enabled)
+        self.window.set_client_calls_notification_enabled(self.settings.client_calls_notification_enabled)
         self.window.set_client_calls_volume(self.settings.client_calls_volume)
         self.window.set_client_calls_file(self.settings.client_calls_file_path)
         self.window.set_client_calls_interval(self.settings.client_calls_interval_seconds)
+        self.window.set_scheduler_weekdays(self.settings.scheduler_weekdays)
         self._refresh_devices()
         self._refresh_schedule_list()
         self._refresh_client_calls_queue(None, [], 0.0)
@@ -83,7 +95,7 @@ class AudioSchedulerController:
         self.client_call_service.start()
 
     def _refresh_devices(self) -> None:
-        device_names = self.device_service.get_output_device_names()
+        device_names = self.device_service.refresh_output_device_names()
         self.window.set_device_options(device_names, self.settings.selected_device)
         self.window.set_client_calls_device_options(device_names, self.settings.client_calls_selected_device)
 
@@ -92,6 +104,10 @@ class AudioSchedulerController:
         if self.window.client_calls_device_var.get():
             self.settings.client_calls_selected_device = self.window.client_calls_device_var.get()
         self.repository.save_settings(self.settings)
+
+    def refresh_devices(self) -> None:
+        self._refresh_devices()
+        self.root.update_idletasks()
 
     def _refresh_schedule_list(self) -> None:
         entries = self.schedule_manager.get_all()
@@ -114,6 +130,14 @@ class AudioSchedulerController:
             self.settings.client_calls_file_path = file_path
             self.repository.save_settings(self.settings)
 
+    def browse_notification_sound_file(self) -> None:
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Audio Files", "*.wav;*.mp3;*.flac;*.ogg"), ("All Files", "*.*")]
+        )
+        if file_path:
+            self.window.set_notification_sound_file(file_path)
+            self._update_setting("notification_sound_file_path", file_path)
+
     def add_schedule(self) -> None:
         try:
             file_path = self.window.get_selected_file()
@@ -124,7 +148,6 @@ class AudioSchedulerController:
 
             self.schedule_manager.add_entry(time_str, file_path)
             self._refresh_schedule_list()
-            self.window.clear_time_input()
 
         except ValidationError as e:
             self.window.show_error(str(e))
@@ -181,13 +204,16 @@ class AudioSchedulerController:
             self.window.show_error("Не выбрано аудиоустройство")
             return
 
-        self.playback_coordinator.enqueue(
-            PlaybackTask(
+        self._enqueue_with_optional_notification(
+            main_task=PlaybackTask(
                 file_path=file_path,
                 volume=self.settings.volume,
                 device_name=self.settings.selected_device,
                 on_error=lambda msg: self.window.show_error(msg),
-            )
+            ),
+            notification_enabled=self.settings.scheduler_notification_enabled,
+            notification_device_name=self.settings.selected_device,
+            notification_volume=self.settings.volume,
         )
 
     def stop_audio(self) -> None:
@@ -211,6 +237,31 @@ class AudioSchedulerController:
     def change_client_calls_interval(self) -> None:
         if not self._sync_client_calls_interval(show_errors=True):
             return
+
+    def change_scheduler_notification_enabled(self) -> None:
+        if not self._sync_notification_settings(
+            enabled=self.window.is_scheduler_notification_enabled(),
+            field_name="scheduler_notification_enabled",
+            reset=lambda: self.window.set_scheduler_notification_enabled(self.settings.scheduler_notification_enabled),
+        ):
+            return
+
+    def change_client_calls_notification_enabled(self) -> None:
+        if not self._sync_notification_settings(
+            enabled=self.window.is_client_calls_notification_enabled(),
+            field_name="client_calls_notification_enabled",
+            reset=lambda: self.window.set_client_calls_notification_enabled(self.settings.client_calls_notification_enabled),
+        ):
+            return
+
+    def change_scheduler_weekdays(self) -> None:
+        weekdays = self.window.get_scheduler_weekdays()
+        if not weekdays:
+            self.window.show_error("Выберите хотя бы один день недели для планировщика")
+            self.window.set_scheduler_weekdays(self.settings.scheduler_weekdays)
+            return
+
+        self._update_setting("scheduler_weekdays", weekdays)
 
 
     def _refresh_client_calls_queue(self, current_call: ClientCall | None, calls: list[ClientCall], progress: float) -> None:
@@ -243,6 +294,50 @@ class AudioSchedulerController:
         self.window.set_client_calls_interval(interval)
         self.repository.save_settings(self.settings)
         return True
+
+    def _sync_notification_settings(self, enabled: bool, field_name: str, reset) -> bool:
+        if enabled:
+            try:
+                ValidationService.validate_optional_file(
+                    self.window.get_notification_sound_file(),
+                    "Сначала выберите файл звука уведомления",
+                )
+            except ValidationError as error:
+                self.window.show_error(str(error))
+                reset()
+                return False
+
+        self._update_setting(field_name, enabled)
+        return True
+
+    def _enqueue_with_optional_notification(
+        self,
+        main_task: PlaybackTask,
+        notification_enabled: bool,
+        notification_device_name: str,
+        notification_volume: float,
+    ) -> None:
+        if notification_enabled:
+            try:
+                ValidationService.validate_optional_file(
+                    self.settings.notification_sound_file_path,
+                    "Сначала выберите файл звука уведомления",
+                )
+            except ValidationError as error:
+                if main_task.on_error:
+                    main_task.on_error(str(error))
+                return
+
+            self.playback_coordinator.enqueue(
+                PlaybackTask(
+                    file_path=self.settings.notification_sound_file_path,
+                    volume=notification_volume,
+                    device_name=notification_device_name,
+                    on_error=main_task.on_error,
+                )
+            )
+
+        self.playback_coordinator.enqueue(main_task)
 
     def _update_setting(self, field_name: str, value) -> None:
         setattr(self.settings, field_name, value)
