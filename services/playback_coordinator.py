@@ -15,6 +15,7 @@ class PlaybackTask:
     volume: float
     device_name: str
     cleanup_file: bool = False
+    use_cooldown: bool = False
     on_started: Optional[Callable[[float], None]] = None
     on_finished: Optional[Callable[[], None]] = None
     on_error: Optional[Callable[[str], None]] = None
@@ -37,6 +38,10 @@ class PlaybackCoordinator:
     @property
     def is_busy(self) -> bool:
         return self._current_task is not None or self._cooldown_active or self.player.is_playing
+
+    @property
+    def is_actively_playing(self) -> bool:
+        return self._current_task is not None or self.player.is_playing
 
     def enqueue(self, task: PlaybackTask) -> None:
         self._queue.append(task)
@@ -82,7 +87,7 @@ class PlaybackCoordinator:
         if task and task.on_finished:
             task.on_finished()
 
-        self._schedule_cooldown()
+        self._schedule_cooldown(task)
 
     def _handle_error(self, message: str) -> None:
         task = self._current_task
@@ -92,9 +97,13 @@ class PlaybackCoordinator:
         if task and task.on_error:
             task.on_error(message)
 
-        self._schedule_cooldown()
+        self._schedule_cooldown(task)
 
-    def _schedule_cooldown(self) -> None:
+    def _schedule_cooldown(self, task: Optional[PlaybackTask]) -> None:
+        if task is None or not task.use_cooldown:
+            self._play_next_if_possible()
+            return
+
         interval_ms = int(max(self.get_interval_seconds(), 0.0) * 1000)
         if interval_ms <= 0:
             self._play_next_if_possible()

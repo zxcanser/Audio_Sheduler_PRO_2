@@ -48,6 +48,8 @@ class AudioPlayer:
         with self._lock:
             self._is_playing = True
 
+        playback_failed = False
+
         try:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Файл не найден: {file_path}")
@@ -78,12 +80,13 @@ class AudioPlayer:
             sd.wait()
 
         except Exception as e:
+            playback_failed = True
             if on_error:
                 on_error(str(e))
         finally:
             with self._lock:
                 self._is_playing = False
-            if on_finished:
+            if not playback_failed and on_finished:
                 on_finished()
 
     def stop(self) -> None:

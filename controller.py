@@ -58,9 +58,7 @@ class AudioSchedulerController:
     def _connect_events(self) -> None:
         self.window.on_browse = self.browse_file
         self.window.on_add = self.add_schedule
-        self.window.on_edit = self.edit_schedule
         self.window.on_delete = self.delete_schedule
-        self.window.on_toggle = self.toggle_schedule
         self.window.on_play = self.play_selected_or_current
         self.window.on_stop = self.stop_audio
         self.window.on_device_change = self.change_device
@@ -70,7 +68,6 @@ class AudioSchedulerController:
         self.window.on_client_calls_volume_change = self.change_client_calls_volume
         self.window.on_client_calls_device_change = self.change_client_calls_device
         self.window.on_client_calls_interval_change = self.change_client_calls_interval
-        self.window.on_clear_client_calls_queue = self.clear_client_calls_queue
         self.window.on_close = self.handle_close_request
         self.window.on_window_unmap = self.handle_window_unmap
 
@@ -133,23 +130,6 @@ class AudioSchedulerController:
         except ValidationError as e:
             self.window.show_error(str(e))
 
-    def edit_schedule(self) -> None:
-        try:
-            entry_id = self.window.get_selected_entry_id()
-            if not entry_id:
-                raise ValidationError("Выберите запись для редактирования")
-
-            file_path = self.window.get_selected_file()
-            ValidationService.validate_file(file_path)
-
-            hours, minutes = self.window.get_time_input()
-            time_str = ValidationService.validate_time(hours, minutes)
-
-            self.schedule_manager.update_entry(entry_id, time_str, file_path)
-            self._refresh_schedule_list()
-
-        except ValidationError as e:
-            self.window.show_error(str(e))
 
     def delete_schedule(self) -> None:
         try:
@@ -163,17 +143,6 @@ class AudioSchedulerController:
         except ValidationError as e:
             self.window.show_error(str(e))
 
-    def toggle_schedule(self) -> None:
-        try:
-            entry_id = self.window.get_selected_entry_id()
-            if not entry_id:
-                raise ValidationError("Выберите запись")
-
-            self.schedule_manager.toggle_entry(entry_id)
-            self._refresh_schedule_list()
-
-        except ValidationError as e:
-            self.window.show_error(str(e))
 
     def load_selected_entry_into_form(self) -> None:
         entry_id = self.window.get_selected_entry_id()
@@ -188,7 +157,7 @@ class AudioSchedulerController:
         self.window.set_selected_file(entry.file_path)
 
     def play_selected_or_current(self) -> None:
-        if self.playback_coordinator.is_busy:
+        if self.playback_coordinator.is_actively_playing:
             self.stop_audio()
             return
 
@@ -248,8 +217,6 @@ class AudioSchedulerController:
         if not self._sync_client_calls_interval(show_errors=True):
             return
 
-    def clear_client_calls_queue(self) -> None:
-        self.client_call_service.clear_queue()
 
     def _refresh_client_calls_queue(self, current_call: ClientCall | None, calls: list[ClientCall], progress: float) -> None:
         self.window.render_client_calls(current_call, calls, progress)

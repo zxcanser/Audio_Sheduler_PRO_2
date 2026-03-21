@@ -153,6 +153,7 @@ class ClientCallService:
                 volume=self.get_volume(),
                 device_name=self.get_device_name(),
                 cleanup_file=True,
+                use_cooldown=True,
                 on_started=lambda duration: self.root.after(0, lambda: self._handle_playback_started(duration)),
                 on_finished=lambda: self.root.after(0, self._handle_playback_finished),
                 on_error=lambda msg: self.root.after(0, lambda: self._handle_playback_error(msg)),
