@@ -34,9 +34,7 @@ class ClientCallService:
 
         self._queue: Deque[ClientCall] = deque()
         self._running = False
-        self._waiting_interval = False
         self._last_signature: Optional[str] = None
-        self._current_temp_file: Optional[str] = None
         self._current_call: Optional[ClientCall] = None
         self._current_call_started_at: Optional[float] = None
         self._current_call_duration: float = 0.0
@@ -56,13 +54,6 @@ class ClientCallService:
         self._current_call_duration = 0.0
         self._playback_requested = False
         self._emit_state_change()
-
-    def clear_queue(self) -> None:
-        self._queue.clear()
-        self._emit_state_change()
-
-    def get_queue(self) -> List[ClientCall]:
-        return list(self._queue)
 
     def _poll_source_file(self) -> None:
         if not self._running:

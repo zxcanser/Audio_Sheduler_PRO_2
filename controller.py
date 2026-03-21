@@ -60,7 +60,6 @@ class AudioSchedulerController:
         self.window.on_add = self.add_schedule
         self.window.on_delete = self.delete_schedule
         self.window.on_play = self.play_selected_or_current
-        self.window.on_stop = self.stop_audio
         self.window.on_device_change = self.change_device
         self.window.on_volume_change = self.change_volume
         self.window.on_select_entry = self.load_selected_entry_into_form
@@ -195,23 +194,19 @@ class AudioSchedulerController:
         self.playback_coordinator.stop()
 
     def change_device(self, device_name: str) -> None:
-        self.settings.selected_device = device_name
-        self.repository.save_settings(self.settings)
+        self._update_setting("selected_device", device_name)
 
     def change_volume(self, volume: float) -> None:
-        self.settings.volume = volume
-        self.repository.save_settings(self.settings)
+        self._update_setting("volume", volume)
 
     def _run_scheduled_entry(self, entry) -> None:
         self._play_file(entry.file_path)
 
     def change_client_calls_device(self, device_name: str) -> None:
-        self.settings.client_calls_selected_device = device_name
-        self.repository.save_settings(self.settings)
+        self._update_setting("client_calls_selected_device", device_name)
 
     def change_client_calls_volume(self, volume: float) -> None:
-        self.settings.client_calls_volume = volume
-        self.repository.save_settings(self.settings)
+        self._update_setting("client_calls_volume", volume)
 
     def change_client_calls_interval(self) -> None:
         if not self._sync_client_calls_interval(show_errors=True):
@@ -248,3 +243,7 @@ class AudioSchedulerController:
         self.window.set_client_calls_interval(interval)
         self.repository.save_settings(self.settings)
         return True
+
+    def _update_setting(self, field_name: str, value) -> None:
+        setattr(self.settings, field_name, value)
+        self.repository.save_settings(self.settings)

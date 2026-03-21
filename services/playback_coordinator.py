@@ -36,10 +36,6 @@ class PlaybackCoordinator:
         self._cooldown_active = False
 
     @property
-    def is_busy(self) -> bool:
-        return self._current_task is not None or self._cooldown_active or self.player.is_playing
-
-    @property
     def is_actively_playing(self) -> bool:
         return self._current_task is not None or self.player.is_playing
 

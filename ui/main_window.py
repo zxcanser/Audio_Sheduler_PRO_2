@@ -37,7 +37,6 @@ class MainWindow:
         self.on_delete: Optional[Callable[[], None]] = None
         self.on_browse: Optional[Callable[[], None]] = None
         self.on_play: Optional[Callable[[], None]] = None
-        self.on_stop: Optional[Callable[[], None]] = None
         self.on_device_change: Optional[Callable[[str], None]] = None
         self.on_volume_change: Optional[Callable[[float], None]] = None
         self.on_select_entry: Optional[Callable[[], None]] = None
@@ -234,18 +233,12 @@ class MainWindow:
         if self.on_play:
             self.on_play()
 
-    def _stop_clicked(self) -> None:
-        if self.on_stop:
-            self.on_stop()
-
     def _browse_client_calls_file_clicked(self) -> None:
         if self.on_browse_client_calls_file:
             self.on_browse_client_calls_file()
 
     def _client_calls_volume_changed(self, value: str) -> None:
-        self.client_calls_volume_display_var.set(f"{float(value):.1f}")
-        if self.on_client_calls_volume_change:
-            self.on_client_calls_volume_change(float(value))
+        self._handle_volume_change(value, self.client_calls_volume_display_var, self.on_client_calls_volume_change)
 
     def _client_calls_device_changed(self, *args) -> None:
         if self.on_client_calls_device_change:
@@ -290,9 +283,7 @@ class MainWindow:
             self.on_device_change(self.device_var.get())
 
     def _volume_changed(self, value: str) -> None:
-        self.volume_display_var.set(f"{float(value):.1f}")
-        if self.on_volume_change:
-            self.on_volume_change(float(value))
+        self._handle_volume_change(value, self.volume_display_var, self.on_volume_change)
 
     def _select_entry(self) -> None:
         if self.on_select_entry:
@@ -315,12 +306,10 @@ class MainWindow:
         self._client_calls_settings_window.focus_force()
 
     def set_selected_file(self, file_path: str) -> None:
-        self.selected_file_path.set(file_path)
-        self.selected_file_display.set(os.path.basename(file_path) if file_path else "")
+        self._set_file_value(self.selected_file_path, self.selected_file_display, file_path)
 
     def set_client_calls_file(self, file_path: str) -> None:
-        self.client_calls_file_path.set(file_path)
-        self.client_calls_file_display.set(os.path.basename(file_path) if file_path else "")
+        self._set_file_value(self.client_calls_file_path, self.client_calls_file_display, file_path)
 
     def get_selected_file(self) -> str:
         return self.selected_file_path.get()
@@ -392,34 +381,10 @@ class MainWindow:
                 canvas.itemconfigure(fill_id, state="hidden")
 
     def set_device_options(self, device_names: List[str], selected: str = "") -> None:
-        menu = self.device_menu["menu"]
-        menu.delete(0, "end")
-
-        for name in device_names:
-            menu.add_command(
-                label=name,
-                command=lambda value=name: self.device_var.set(value)
-            )
-
-        if device_names:
-            self.device_var.set(selected if selected in device_names else device_names[0])
-        else:
-            self.device_var.set("")
+        self._set_option_menu_values(self.device_menu, self.device_var, device_names, selected)
 
     def set_client_calls_device_options(self, device_names: List[str], selected: str = "") -> None:
-        menu = self.client_calls_device_menu["menu"]
-        menu.delete(0, "end")
-
-        for name in device_names:
-            menu.add_command(
-                label=name,
-                command=lambda value=name: self.client_calls_device_var.set(value)
-            )
-
-        if device_names:
-            self.client_calls_device_var.set(selected if selected in device_names else device_names[0])
-        else:
-            self.client_calls_device_var.set("")
+        self._set_option_menu_values(self.client_calls_device_menu, self.client_calls_device_var, device_names, selected)
 
     def set_volume(self, value: float) -> None:
         self.volume_var.set(value)
@@ -441,11 +406,41 @@ class MainWindow:
     def show_error(self, text: str) -> None:
         messagebox.showerror("Ошибка", text)
 
-    def show_info(self, text: str) -> None:
-        messagebox.showinfo("Информация", text)
-
     def _fit_window_to_content(self, window: tk.Misc) -> None:
         window.update_idletasks()
         width = window.winfo_reqwidth()
         height = window.winfo_reqheight()
         window.geometry(f"{width}x{height}")
+
+    def _set_option_menu_values(
+        self,
+        option_menu: tk.OptionMenu,
+        variable: tk.StringVar,
+        options: List[str],
+        selected: str = "",
+    ) -> None:
+        menu = option_menu["menu"]
+        menu.delete(0, "end")
+
+        for name in options:
+            menu.add_command(label=name, command=lambda value=name: variable.set(value))
+
+        if options:
+            variable.set(selected if selected in options else options[0])
+        else:
+            variable.set("")
+
+    def _handle_volume_change(
+        self,
+        value: str,
+        display_var: tk.StringVar,
+        callback: Optional[Callable[[float], None]],
+    ) -> None:
+        volume = float(value)
+        display_var.set(f"{volume:.1f}")
+        if callback:
+            callback(volume)
+
+    def _set_file_value(self, path_var: tk.StringVar, display_var: tk.StringVar, file_path: str) -> None:
+        path_var.set(file_path)
+        display_var.set(os.path.basename(file_path) if file_path else "")
