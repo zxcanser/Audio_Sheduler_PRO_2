@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Local app data
+config.json
+schedule.json
+output.txt
+
+# Virtual environments
+.venv/
+venv/

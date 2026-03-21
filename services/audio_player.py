@@ -1,0 +1,92 @@
+import os
+import threading
+from typing import Callable, Optional
+
+import sounddevice as sd
+import soundfile as sf
+
+from services.audio_device_service import AudioDeviceService
+
+
+class AudioPlayer:
+    def __init__(self, device_service: AudioDeviceService):
+        self.device_service = device_service
+        self._thread: Optional[threading.Thread] = None
+        self._is_playing = False
+        self._lock = threading.Lock()
+
+    @property
+    def is_playing(self) -> bool:
+        return self._is_playing
+
+    def play_async(
+        self,
+        file_path: str,
+        volume: float,
+        device_name: str,
+        on_error: Optional[Callable[[str], None]] = None,
+        on_finished: Optional[Callable[[], None]] = None,
+    ) -> None:
+        if self._is_playing:
+            self.stop()
+
+        self._thread = threading.Thread(
+            target=self._play_worker,
+            args=(file_path, volume, device_name, on_error, on_finished),
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _play_worker(
+        self,
+        file_path: str,
+        volume: float,
+        device_name: str,
+        on_error: Optional[Callable[[str], None]],
+        on_finished: Optional[Callable[[], None]],
+    ) -> None:
+        with self._lock:
+            self._is_playing = True
+
+        try:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Файл не найден: {file_path}")
+
+            data, samplerate = sf.read(file_path, dtype="float32")
+
+            if data.ndim == 1:
+                pass
+            elif data.ndim == 2 and data.shape[1] > 2:
+                data = data[:, :2]
+
+            data *= volume
+
+            device_id = None
+            if device_name:
+                device_id = self.device_service.get_device_id_by_name(device_name)
+
+            # На macOS иногда выбранное устройство возвращает ошибку AUHAL -50.
+            # Поэтому если устройство не найдено — пробуем системное по умолчанию.
+            if device_id is None:
+                sd.play(data, samplerate)
+            else:
+                try:
+                    sd.play(data, samplerate, device=device_id)
+                except Exception:
+                    sd.play(data, samplerate)
+
+            sd.wait()
+
+        except Exception as e:
+            if on_error:
+                on_error(str(e))
+        finally:
+            with self._lock:
+                self._is_playing = False
+            if on_finished:
+                on_finished()
+
+    def stop(self) -> None:
+        sd.stop()
+        with self._lock:
+            self._is_playing = False
