@@ -4,14 +4,13 @@ from tkinter import messagebox
 from typing import Callable, List, Optional
 
 from models import ClientCall, ScheduleEntry
-from config import WINDOW_TITLE, WINDOW_SIZE
+from config import WINDOW_TITLE
 
 
 class MainWindow:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(WINDOW_TITLE)
-        self.root.geometry(WINDOW_SIZE)
         self.root.resizable(False, False)
 
         self.selected_file_path = tk.StringVar()
@@ -50,6 +49,7 @@ class MainWindow:
         self.on_window_unmap: Optional[Callable[[], None]] = None
 
         self._build()
+        self._fit_window_to_content(self.root)
 
     def _build(self) -> None:
         frame = tk.Frame(self.root, padx=10, pady=10)
@@ -85,36 +85,18 @@ class MainWindow:
         actions_right = tk.Frame(actions)
         actions_right.pack(side="right")
 
-        tk.Button(actions_left, text="▶/⏸ Плей/Пауза", width=14, command=self._play_clicked).pack(side="left")
+        tk.Button(actions_left, text="▶/⏹ Play/Stop", width=14, command=self._play_clicked).pack(side="left")
         tk.Button(actions_right, text="Удалить", width=12, command=self._delete_clicked).pack(side="right")
-
-        tk.Label(scheduler_frame, text="Громкость:").grid(row=5, column=0, sticky="w")
-        volume_frame = tk.Frame(scheduler_frame)
-        volume_frame.grid(row=5, column=1, sticky="w")
-        tk.Scale(
-            volume_frame,
-            from_=0.0,
-            to=1.0,
-            resolution=0.1,
-            orient="horizontal",
-            variable=self.volume_var,
-            command=self._volume_changed,
-            showvalue=False
-        ).pack(side="left")
-        tk.Label(volume_frame, textvariable=self.volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
-
-        tk.Label(scheduler_frame, text="Аудиоустройство:").grid(row=6, column=0, sticky="w", pady=(10, 0))
-        self.device_menu = tk.OptionMenu(scheduler_frame, self.device_var, "")
-        self.device_menu.grid(row=6, column=1, sticky="w", pady=(10, 0))
 
         calls_frame = tk.LabelFrame(frame, text="Очередь вызова клиентов", padx=10, pady=10)
         calls_frame.grid(row=1, column=0, sticky="nsew", pady=(18, 0))
+        calls_frame.columnconfigure(0, weight=1)
 
-        self.client_calls_rows_frame = tk.Frame(calls_frame)
-        self.client_calls_rows_frame.grid(row=0, column=0, sticky="we")
-        self.client_call_row_canvases: list[tk.Canvas] = []
-        self.client_call_row_fill_ids: list[int] = []
-        self.client_call_row_text_ids: list[int] = []
+        self.client_calls_rows_frame = tk.Frame(calls_frame, bd=1, relief="sunken", bg="#ffffff")
+        self.client_calls_rows_frame.grid(row=0, column=0, sticky="ew")
+        self.client_call_row_canvases = []
+        self.client_call_row_fill_ids = []
+        self.client_call_row_text_ids = []
 
         for _ in range(3):
             row_canvas = tk.Canvas(
@@ -147,7 +129,6 @@ class MainWindow:
 
         frame.columnconfigure(0, weight=1)
         scheduler_frame.columnconfigure(1, weight=1)
-        calls_frame.columnconfigure(0, weight=1)
         self._build_menu()
         self._build_client_calls_settings_window()
 
@@ -155,36 +136,56 @@ class MainWindow:
         menubar = tk.Menu(self.root)
 
         settings_menu = tk.Menu(menubar, tearoff=0)
-        settings_menu.add_command(label="Настройки вызовов", command=self.show_client_calls_settings_window)
-        menubar.add_cascade(label="Настройки", menu=settings_menu)
+        settings_menu.add_command(label="Настройки", command=self.show_client_calls_settings_window)
+        menubar.add_cascade(label="Опции", menu=settings_menu)
 
         self.root.config(menu=menubar)
 
     def _build_client_calls_settings_window(self) -> None:
         window = tk.Toplevel(self.root)
-        window.title("Настройки вызовов")
-        window.geometry("560x230")
+        window.title("Настройки")
         window.resizable(False, False)
         window.withdraw()
         window.transient(self.root)
         window.protocol("WM_DELETE_WINDOW", self._hide_client_calls_settings_window)
 
-        content = tk.Frame(window, padx=12, pady=12)
+        content = tk.Frame(window, padx=10, pady=10)
         content.pack(fill="both", expand=True)
+        content.columnconfigure(0, weight=1)
+        devices_frame = tk.LabelFrame(content, text="Аудио устройства", padx=10, pady=10)
+        devices_frame.grid(row=0, column=0, sticky="ew")
+        devices_frame.columnconfigure(1, weight=1)
 
-        tk.Label(content, text="Файл данных:").grid(row=0, column=0, sticky="w")
-        tk.Entry(content, textvariable=self.client_calls_file_display, width=38, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
-        tk.Button(content, text="Выбрать", width=12, command=self._browse_client_calls_file_clicked).grid(row=0, column=2, padx=5)
+        tk.Label(devices_frame, text="Планировщик:").grid(row=0, column=0, sticky="w")
+        self.device_menu = tk.OptionMenu(devices_frame, self.device_var, "")
+        self.device_menu.grid(row=0, column=1, sticky="w", padx=5)
 
-        tk.Label(content, text="Интервал (сек):").grid(row=1, column=0, sticky="w", pady=(12, 0))
-        interval_entry = tk.Entry(content, textvariable=self.client_calls_interval_var, width=3)
-        interval_entry.grid(row=1, column=1, sticky="w", padx=5, pady=(12, 0))
-        interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
-        interval_entry.bind("<Return>", self._client_calls_interval_submitted)
+        tk.Label(devices_frame, text="Очередь вызовов:").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self.client_calls_device_menu = tk.OptionMenu(devices_frame, self.client_calls_device_var, "")
+        self.client_calls_device_menu.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
 
-        tk.Label(content, text="Громкость Бота:").grid(row=2, column=0, sticky="w", pady=(12, 0))
-        calls_volume_frame = tk.Frame(content)
-        calls_volume_frame.grid(row=2, column=1, sticky="w", pady=(12, 0))
+        volumes_frame = tk.LabelFrame(content, text="Настройки громкости", padx=10, pady=10)
+        volumes_frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        volumes_frame.columnconfigure(1, weight=1)
+
+        tk.Label(volumes_frame, text="Планировщик:").grid(row=0, column=0, sticky="w")
+        scheduler_volume_frame = tk.Frame(volumes_frame)
+        scheduler_volume_frame.grid(row=0, column=1, sticky="w", padx=5)
+        tk.Scale(
+            scheduler_volume_frame,
+            from_=0.0,
+            to=1.0,
+            resolution=0.1,
+            orient="horizontal",
+            variable=self.volume_var,
+            command=self._volume_changed,
+            showvalue=False
+        ).pack(side="left")
+        tk.Label(scheduler_volume_frame, textvariable=self.volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
+
+        tk.Label(volumes_frame, text="Очередь вызовов:").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        calls_volume_frame = tk.Frame(volumes_frame)
+        calls_volume_frame.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
         tk.Scale(
             calls_volume_frame,
             from_=0.0,
@@ -197,13 +198,23 @@ class MainWindow:
         ).pack(side="left")
         tk.Label(calls_volume_frame, textvariable=self.client_calls_volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
 
-        tk.Label(content, text="Аудиоустройство:").grid(row=3, column=0, sticky="w", pady=(12, 0))
-        self.client_calls_device_menu = tk.OptionMenu(content, self.client_calls_device_var, "")
-        self.client_calls_device_menu.grid(row=3, column=1, sticky="w", pady=(12, 0))
+        queue_frame = tk.LabelFrame(content, text="Очередь", padx=10, pady=10)
+        queue_frame.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        queue_frame.columnconfigure(1, weight=1)
 
-        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=4, column=2, sticky="e", pady=(18, 0))
-        content.columnconfigure(1, weight=1)
+        tk.Label(queue_frame, text="Файл данных:").grid(row=0, column=0, sticky="w")
+        tk.Entry(queue_frame, textvariable=self.client_calls_file_display, width=38, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
+        tk.Button(queue_frame, text="Выбрать", width=12, command=self._browse_client_calls_file_clicked).grid(row=0, column=2, padx=5)
+
+        tk.Label(queue_frame, text="Интервал (сек):").grid(row=1, column=0, sticky="w", pady=(12, 0))
+        interval_entry = tk.Entry(queue_frame, textvariable=self.client_calls_interval_var, width=3)
+        interval_entry.grid(row=1, column=1, sticky="w", padx=5, pady=(12, 0))
+        interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
+        interval_entry.bind("<Return>", self._client_calls_interval_submitted)
+
+        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=3, column=0, sticky="e", pady=(18, 0))
         self._client_calls_settings_window = window
+        self._fit_window_to_content(window)
 
     def _browse_clicked(self) -> None:
         if self.on_browse:
@@ -298,6 +309,7 @@ class MainWindow:
         if self._client_calls_settings_window is None:
             return
 
+        self._fit_window_to_content(self._client_calls_settings_window)
         self._client_calls_settings_window.deiconify()
         self._client_calls_settings_window.lift()
         self._client_calls_settings_window.focus_force()
@@ -431,3 +443,9 @@ class MainWindow:
 
     def show_info(self, text: str) -> None:
         messagebox.showinfo("Информация", text)
+
+    def _fit_window_to_content(self, window: tk.Misc) -> None:
+        window.update_idletasks()
+        width = window.winfo_reqwidth()
+        height = window.winfo_reqheight()
+        window.geometry(f"{width}x{height}")
