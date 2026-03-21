@@ -38,6 +38,7 @@ class AppSettings:
 class ClientCall:
     counter: str
     ticket: str
+    speech_message: str = ""
     call_id: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -46,8 +47,8 @@ class ClientCall:
 
     @property
     def display_text(self) -> str:
-        return f"Окно {self.counter} | {self.ticket}"
+        return self.speech_text
 
     @property
     def speech_text(self) -> str:
-        return f"Клиент {self.ticket}. Подойдите к окну {self.counter}."
+        return self.speech_message or f"Клиент {self.ticket}. Подойдите к окну {self.counter}."

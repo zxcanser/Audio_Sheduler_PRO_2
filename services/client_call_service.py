@@ -116,10 +116,22 @@ class ClientCallService:
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
         calls: List[ClientCall] = []
 
-        for index in range(0, len(lines) - 1, 2):
-            counter = lines[index]
-            ticket = lines[index + 1]
-            calls.append(ClientCall(counter=counter, ticket=ticket))
+        for index in range(0, len(lines), 3):
+            chunk = lines[index:index + 3]
+            if not chunk:
+                continue
+
+            counter = chunk[0]
+            ticket = chunk[1] if len(chunk) > 1 else ""
+            speech_message = " ".join(chunk)
+
+            calls.append(
+                ClientCall(
+                    counter=counter,
+                    ticket=ticket,
+                    speech_message=speech_message,
+                )
+            )
 
         return calls
 
