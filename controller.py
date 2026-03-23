@@ -6,6 +6,7 @@ from models import ClientCall
 from repository import JsonRepository
 from services.audio_device_service import AudioDeviceService
 from services.audio_player import AudioPlayer
+from services.autostart_service import AutostartService
 from services.client_call_service import ClientCallService
 from services.platform_integration import PlatformIntegration
 from services.playback_coordinator import PlaybackCoordinator, PlaybackTask
@@ -19,9 +20,11 @@ from ui.main_window import MainWindow
 class AudioSchedulerController:
     def __init__(self, root: tk.Tk):
         self.root = root
+        self._save_geometry_after_id: str | None = None
 
         self.repository = JsonRepository(CONFIG_FILE, SCHEDULE_FILE)
         self.device_service = AudioDeviceService()
+        self.autostart_service = AutostartService()
         self.player = AudioPlayer(self.device_service)
         self.playback_coordinator = PlaybackCoordinator(
             tk_root=root,
@@ -77,15 +80,20 @@ class AudioSchedulerController:
         self.window.on_client_calls_interval_change = self.change_client_calls_interval
         self.window.on_scheduler_weekdays_change = self.change_scheduler_weekdays
         self.window.on_browse_notification_sound_file = self.browse_notification_sound_file
+        self.window.on_play_notification_sound = self.play_notification_sound
+        self.window.on_autostart_toggle = self.change_autostart_enabled
         self.window.on_scheduler_notification_toggle = self.change_scheduler_notification_enabled
         self.window.on_client_calls_notification_toggle = self.change_client_calls_notification_enabled
         self.window.on_close = self.handle_close_request
         self.window.on_window_unmap = self.handle_window_unmap
+        self.window.on_window_configure = self.handle_window_configure
 
     def _load_initial_state(self) -> None:
+        self.window.set_main_window_geometry(self.settings.main_window_geometry)
         self.window.set_volume(self.settings.volume)
         self.window.set_notification_volume(self.settings.notification_volume)
         self.window.set_notification_sound_file(self.settings.notification_sound_file_path)
+        self.window.set_autostart_enabled(self.settings.autostart_enabled)
         self.window.set_scheduler_notification_enabled(self.settings.scheduler_notification_enabled)
         self.window.set_client_calls_notification_enabled(self.settings.client_calls_notification_enabled)
         self.window.set_client_calls_volume(self.settings.client_calls_volume)
@@ -143,6 +151,26 @@ class AudioSchedulerController:
         if file_path:
             self.window.set_notification_sound_file(file_path)
             self._update_setting("notification_sound_file_path", file_path)
+
+    def play_notification_sound(self) -> None:
+        try:
+            ValidationService.validate_optional_file(
+                self.window.get_notification_sound_file(),
+                "Сначала выберите файл звука уведомления",
+            )
+        except ValidationError as error:
+            self.window.show_error(str(error))
+            return
+
+        device_name = self.settings.selected_device or self.settings.client_calls_selected_device
+        self.playback_coordinator.enqueue(
+            PlaybackTask(
+                file_path=self.window.get_notification_sound_file(),
+                volume=self.settings.notification_volume,
+                device_name=device_name,
+                on_error=lambda msg: self.window.show_error(msg),
+            )
+        )
 
     def add_schedule(self) -> None:
         try:
@@ -250,6 +278,17 @@ class AudioSchedulerController:
         if not self._sync_client_calls_interval(show_errors=True):
             return
 
+    def change_autostart_enabled(self) -> None:
+        enabled = self.window.is_autostart_enabled()
+        try:
+            self.autostart_service.set_enabled(enabled)
+        except Exception as error:
+            self.window.show_error(f"Не удалось изменить автозапуск: {error}")
+            self.window.set_autostart_enabled(self.settings.autostart_enabled)
+            return
+
+        self._update_setting("autostart_enabled", enabled)
+
     def change_scheduler_notification_enabled(self) -> None:
         if not self._sync_notification_settings(
             enabled=self.window.is_scheduler_notification_enabled(),
@@ -287,6 +326,7 @@ class AudioSchedulerController:
 
     def shutdown(self) -> None:
         self._sync_client_calls_interval(show_errors=False)
+        self._save_main_window_geometry()
         self.scheduler.stop()
         self.playback_coordinator.reset()
         self.client_call_service.stop()
@@ -354,3 +394,20 @@ class AudioSchedulerController:
     def _update_setting(self, field_name: str, value) -> None:
         setattr(self.settings, field_name, value)
         self.repository.save_settings(self.settings)
+
+    def handle_window_configure(self) -> None:
+        try:
+            if self.root.state() != "normal":
+                return
+        except tk.TclError:
+            return
+
+        if self._save_geometry_after_id is not None:
+            self.root.after_cancel(self._save_geometry_after_id)
+        self._save_geometry_after_id = self.root.after(250, self._save_main_window_geometry)
+
+    def _save_main_window_geometry(self) -> None:
+        self._save_geometry_after_id = None
+        geometry = self.window.get_main_window_geometry()
+        if geometry and geometry != self.settings.main_window_geometry:
+            self._update_setting("main_window_geometry", geometry)

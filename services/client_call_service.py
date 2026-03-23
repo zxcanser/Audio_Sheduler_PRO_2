@@ -146,6 +146,9 @@ class ClientCallService:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
+            log_dir = os.path.dirname(CLIENT_CALLS_LOG_FILE)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
             with open(CLIENT_CALLS_LOG_FILE, "a", encoding="utf-8") as log_file:
                 for call in calls:
                     log_file.write(f"[{timestamp}] {call.display_text}\n")

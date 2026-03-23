@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import ttk
 from typing import Callable, List, Optional
 
 from models import ClientCall, ScheduleEntry
@@ -34,6 +35,7 @@ class MainWindow:
         self.device_var = tk.StringVar()
         self.notification_sound_file_path = tk.StringVar()
         self.notification_sound_display = tk.StringVar()
+        self.autostart_var = tk.BooleanVar(value=False)
         self.scheduler_notification_var = tk.BooleanVar(value=False)
         self.client_calls_notification_var = tk.BooleanVar(value=False)
         self.client_calls_file_path = tk.StringVar()
@@ -70,10 +72,13 @@ class MainWindow:
         self.on_client_calls_interval_change: Optional[Callable[[], None]] = None
         self.on_scheduler_weekdays_change: Optional[Callable[[], None]] = None
         self.on_browse_notification_sound_file: Optional[Callable[[], None]] = None
+        self.on_play_notification_sound: Optional[Callable[[], None]] = None
+        self.on_autostart_toggle: Optional[Callable[[], None]] = None
         self.on_scheduler_notification_toggle: Optional[Callable[[], None]] = None
         self.on_client_calls_notification_toggle: Optional[Callable[[], None]] = None
         self.on_close: Optional[Callable[[], None]] = None
         self.on_window_unmap: Optional[Callable[[], None]] = None
+        self.on_window_configure: Optional[Callable[[], None]] = None
 
         self._build()
         self._fit_window_to_content(self.root)
@@ -86,7 +91,7 @@ class MainWindow:
         scheduler_frame.grid(row=0, column=0, sticky="nsew")
 
         tk.Label(scheduler_frame, text="Аудиофайл:").grid(row=0, column=0, sticky="w")
-        tk.Entry(scheduler_frame, textvariable=self.selected_file_display, width=50, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
+        tk.Entry(scheduler_frame, textvariable=self.selected_file_display, width=32, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
         tk.Button(scheduler_frame, text="Выбрать", width=12, command=self._browse_clicked).grid(row=0, column=2, padx=5)
 
         tk.Label(scheduler_frame, text="Время (ЧЧ:ММ):").grid(row=1, column=0, sticky="w", pady=(10, 0))
@@ -100,7 +105,7 @@ class MainWindow:
         tk.Button(scheduler_frame, text="Добавить", width=12, command=self._add_clicked).grid(row=1, column=2, padx=5, pady=(10, 0))
 
         tk.Label(scheduler_frame, text="Расписание:").grid(row=2, column=0, sticky="w", pady=(15, 5))
-        self.listbox = tk.Listbox(scheduler_frame, width=80, height=10)
+        self.listbox = tk.Listbox(scheduler_frame, width=52, height=10)
         self.listbox.grid(row=3, column=0, columnspan=3, sticky="nsew")
         self.listbox.bind("<<ListboxSelect>>", lambda event: self._select_entry())
 
@@ -159,6 +164,7 @@ class MainWindow:
         self.root.bind_all("<Command-BackSpace>", self._delete_shortcut_pressed)
         self.root.bind_all("<Command-Delete>", self._delete_shortcut_pressed)
         self.root.bind_all("<space>", self._space_pressed)
+        self.root.bind("<Configure>", self._window_configured)
         self.root.bind("<Unmap>", self._window_unmapped)
         self.root.protocol("WM_DELETE_WINDOW", self._close_requested)
 
@@ -187,7 +193,22 @@ class MainWindow:
         content = tk.Frame(window, padx=10, pady=10)
         content.pack(fill="both", expand=True)
         content.columnconfigure(0, weight=1)
-        devices_frame = tk.LabelFrame(content, text="Аудио устройства", padx=10, pady=10)
+        notebook = ttk.Notebook(content)
+        notebook.grid(row=0, column=0, sticky="nsew")
+
+        audio_tab = tk.Frame(notebook, padx=6, pady=6)
+        notifications_tab = tk.Frame(notebook, padx=6, pady=6)
+        queue_tab = tk.Frame(notebook, padx=6, pady=6)
+
+        notebook.add(audio_tab, text="Аудио")
+        notebook.add(notifications_tab, text="Планировщик")
+        notebook.add(queue_tab, text="Очередь")
+
+        audio_tab.columnconfigure(0, weight=1)
+        notifications_tab.columnconfigure(0, weight=1)
+        queue_tab.columnconfigure(0, weight=1)
+
+        devices_frame = tk.LabelFrame(audio_tab, text="Выбор аудио устройства", padx=10, pady=10)
         devices_frame.grid(row=0, column=0, sticky="ew")
         devices_frame.columnconfigure(1, weight=1)
         devices_frame.columnconfigure(2, weight=0)
@@ -202,7 +223,7 @@ class MainWindow:
         self.client_calls_device_menu = tk.OptionMenu(devices_frame, self.client_calls_device_var, "")
         self.client_calls_device_menu.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
 
-        volumes_frame = tk.LabelFrame(content, text="Настройки громкости", padx=10, pady=10)
+        volumes_frame = tk.LabelFrame(audio_tab, text="Настройка громкости", padx=10, pady=10)
         volumes_frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
         volumes_frame.columnconfigure(1, weight=1)
 
@@ -251,24 +272,14 @@ class MainWindow:
         ).pack(side="left")
         tk.Label(notification_volume_frame, textvariable=self.notification_volume_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
 
-        weekdays_frame = tk.LabelFrame(content, text="Дни работы планировщика", padx=10, pady=10)
-        weekdays_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
-
-        for column, (day, label) in enumerate(self.WEEKDAY_LABELS):
-            tk.Checkbutton(
-                weekdays_frame,
-                text=label,
-                variable=self.scheduler_weekday_vars[day],
-                command=self._scheduler_weekdays_changed,
-            ).grid(row=0, column=column, padx=4, sticky="w")
-
-        notification_frame = tk.LabelFrame(content, text="Звук уведомления", padx=10, pady=10)
-        notification_frame.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        notification_frame = tk.LabelFrame(audio_tab, text="Звук уведомления", padx=10, pady=10)
+        notification_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         notification_frame.columnconfigure(1, weight=1)
 
         tk.Label(notification_frame, text="Файл:").grid(row=0, column=0, sticky="w")
         tk.Entry(notification_frame, textvariable=self.notification_sound_display, width=38, state="readonly").grid(row=0, column=1, sticky="we", padx=5)
         tk.Button(notification_frame, text="Выбрать", width=12, command=self._browse_notification_sound_file_clicked).grid(row=0, column=2, padx=5)
+        tk.Button(notification_frame, text="Прослушать", width=12, command=self._play_notification_sound_clicked).grid(row=1, column=2, padx=5, pady=(8, 0), sticky="n")
 
         tk.Checkbutton(
             notification_frame,
@@ -283,8 +294,28 @@ class MainWindow:
             command=self._client_calls_notification_toggled,
         ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
-        queue_frame = tk.LabelFrame(content, text="Очередь", padx=10, pady=10)
-        queue_frame.grid(row=4, column=0, sticky="nsew", pady=(12, 0))
+        weekdays_frame = tk.LabelFrame(notifications_tab, text="Дни работы планировщика", padx=10, pady=10)
+        weekdays_frame.grid(row=0, column=0, sticky="ew")
+
+        for column, (day, label) in enumerate(self.WEEKDAY_LABELS):
+            tk.Checkbutton(
+                weekdays_frame,
+                text=label,
+                variable=self.scheduler_weekday_vars[day],
+                command=self._scheduler_weekdays_changed,
+            ).grid(row=0, column=column, padx=4, sticky="w")
+
+        startup_frame = tk.LabelFrame(notifications_tab, text="Запуск программы", padx=10, pady=10)
+        startup_frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        tk.Checkbutton(
+            startup_frame,
+            text="Запускать вместе с системой",
+            variable=self.autostart_var,
+            command=self._autostart_toggled,
+        ).grid(row=0, column=0, sticky="w")
+
+        queue_frame = tk.LabelFrame(queue_tab, text="Настройки очереди", padx=10, pady=10)
+        queue_frame.grid(row=0, column=0, sticky="nsew")
         queue_frame.columnconfigure(1, weight=1)
 
         tk.Label(queue_frame, text="Файл данных:").grid(row=0, column=0, sticky="w")
@@ -312,7 +343,7 @@ class MainWindow:
         ).pack(side="left")
         tk.Label(speech_rate_frame, textvariable=self.client_calls_speech_rate_display_var, width=4, anchor="w").pack(side="left", padx=(8, 0))
 
-        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=5, column=0, sticky="e", pady=(18, 0))
+        tk.Button(content, text="Закрыть", width=12, command=self._hide_client_calls_settings_window).grid(row=1, column=0, sticky="e", pady=(18, 0))
         self._client_calls_settings_window = window
         self._fit_window_to_content(window)
 
@@ -324,11 +355,9 @@ class MainWindow:
         if self.on_add:
             self.on_add()
 
-
     def _delete_clicked(self) -> None:
         if self.on_delete:
             self.on_delete()
-
 
     def _play_clicked(self) -> None:
         if self.on_play:
@@ -345,6 +374,10 @@ class MainWindow:
     def _browse_notification_sound_file_clicked(self) -> None:
         if self.on_browse_notification_sound_file:
             self.on_browse_notification_sound_file()
+
+    def _play_notification_sound_clicked(self) -> None:
+        if self.on_play_notification_sound:
+            self.on_play_notification_sound()
 
     def _client_calls_volume_changed(self, value: str) -> None:
         self._handle_volume_change(value, self.client_calls_volume_display_var, self.on_client_calls_volume_change)
@@ -379,6 +412,9 @@ class MainWindow:
         if self.on_client_calls_notification_toggle:
             self.on_client_calls_notification_toggle()
 
+    def _autostart_toggled(self) -> None:
+        if self.on_autostart_toggle:
+            self.on_autostart_toggle()
 
     def _hide_client_calls_settings_window(self) -> None:
         if self._client_calls_settings_window is not None:
@@ -391,6 +427,10 @@ class MainWindow:
     def _window_unmapped(self, event: tk.Event) -> None:
         if event.widget is self.root and self.on_window_unmap:
             self.on_window_unmap()
+
+    def _window_configured(self, event: tk.Event) -> None:
+        if event.widget is self.root and self.on_window_configure:
+            self.on_window_configure()
 
     def _space_pressed(self, event: tk.Event) -> str:
         if self.on_play:
@@ -550,6 +590,9 @@ class MainWindow:
     def set_scheduler_notification_enabled(self, enabled: bool) -> None:
         self.scheduler_notification_var.set(enabled)
 
+    def set_autostart_enabled(self, enabled: bool) -> None:
+        self.autostart_var.set(enabled)
+
     def set_client_calls_notification_enabled(self, enabled: bool) -> None:
         self.client_calls_notification_var.set(enabled)
 
@@ -559,14 +602,41 @@ class MainWindow:
     def is_client_calls_notification_enabled(self) -> bool:
         return self.client_calls_notification_var.get()
 
+    def is_autostart_enabled(self) -> bool:
+        return self.autostart_var.get()
+
     def show_error(self, text: str) -> None:
         messagebox.showerror("Ошибка", text)
+
+    def set_main_window_geometry(self, geometry: str) -> None:
+        self._fit_window_to_content(self.root)
+        position = self._extract_window_position(geometry)
+        if position:
+            self.root.geometry(position)
+
+    def get_main_window_geometry(self) -> str:
+        return self._extract_window_position(self.root.geometry())
 
     def _fit_window_to_content(self, window: tk.Misc) -> None:
         window.update_idletasks()
         width = window.winfo_reqwidth()
         height = window.winfo_reqheight()
         window.geometry(f"{width}x{height}")
+
+    def _extract_window_position(self, geometry: str) -> str:
+        if not geometry:
+            return ""
+
+        parts = geometry.split("+")
+        if len(parts) < 3:
+            return ""
+
+        x_pos = parts[-2].strip()
+        y_pos = parts[-1].strip()
+        if not x_pos or not y_pos:
+            return ""
+
+        return f"+{x_pos}+{y_pos}"
 
     def _set_option_menu_values(
         self,

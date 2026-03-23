@@ -26,6 +26,7 @@ class AppSettings:
     volume: float = 0.8
     notification_volume: float = 0.8
     notification_sound_file_path: str = ""
+    autostart_enabled: bool = False
     scheduler_notification_enabled: bool = False
     client_calls_notification_enabled: bool = False
     client_calls_file_path: str = ""
@@ -33,6 +34,7 @@ class AppSettings:
     client_calls_volume: float = 0.8
     client_calls_speech_rate: float = 1.0
     client_calls_interval_seconds: float = 5.0
+    main_window_geometry: str = ""
     scheduler_weekdays: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6])
 
 
