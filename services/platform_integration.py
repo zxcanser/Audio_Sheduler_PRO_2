@@ -144,8 +144,8 @@ class PlatformIntegration:
         import pystray
 
         menu = pystray.Menu(
-            pystray.MenuItem("Открыть окно планировщика", lambda icon, item: self.show_window()),
-            pystray.MenuItem("Сохранить и закрыть", lambda icon, item: self.quit_application()),
+            pystray.MenuItem("Открыть окно планировщика", lambda icon, item: self.enqueue_show_window()),
+            pystray.MenuItem("Сохранить и закрыть", lambda icon, item: self.enqueue_quit()),
         )
         self._tray_icon = pystray.Icon(
             "audio_scheduler",
