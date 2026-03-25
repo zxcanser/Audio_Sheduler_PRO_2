@@ -458,6 +458,9 @@ class MainWindow:
             self.on_select_entry()
 
     def _resize_client_call_rows(self) -> None:
+        if not self.client_calls_rows_frame.winfo_exists():
+            return
+
         self.render_client_calls(
             self._current_client_call,
             self._queued_client_calls,
@@ -535,6 +538,9 @@ class MainWindow:
 
         for index, (text, fill_ratio) in enumerate(rows):
             canvas = self.client_call_row_canvases[index]
+            if not canvas.winfo_exists():
+                continue
+
             fill_id = self.client_call_row_fill_ids[index]
             text_id = self.client_call_row_text_ids[index]
             width = max(canvas.winfo_width(), 1)
