@@ -100,9 +100,9 @@ class MainWindow:
 
         time_frame = tk.Frame(scheduler_frame)
         time_frame.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
-        tk.Entry(time_frame, textvariable=self.hours_var, width=2).pack(side="left")
+        tk.Entry(time_frame, textvariable=self.hours_var, width=3).pack(side="left")
         tk.Label(time_frame, text=":").pack(side="left")
-        tk.Entry(time_frame, textvariable=self.minutes_var, width=2).pack(side="left")
+        tk.Entry(time_frame, textvariable=self.minutes_var, width=3).pack(side="left")
 
         tk.Button(scheduler_frame, text="Добавить", width=12, command=self._add_clicked).grid(row=1, column=2, padx=5, pady=(10, 0))
 
@@ -324,7 +324,7 @@ class MainWindow:
         tk.Button(queue_frame, text="Выбрать", width=12, command=self._browse_client_calls_file_clicked).grid(row=0, column=2, padx=5)
 
         tk.Label(queue_frame, text="Интервал (сек):").grid(row=1, column=0, sticky="w", pady=(12, 0))
-        interval_entry = tk.Entry(queue_frame, textvariable=self.client_calls_interval_var, width=3)
+        interval_entry = tk.Entry(queue_frame, textvariable=self.client_calls_interval_var, width=2)
         interval_entry.grid(row=1, column=1, sticky="w", padx=5, pady=(12, 0))
         interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
         interval_entry.bind("<Return>", self._client_calls_interval_submitted)
