@@ -119,7 +119,7 @@ class MainWindow:
         actions_right = tk.Frame(actions)
         actions_right.pack(side="right")
 
-        tk.Button(actions_left, text="⏵/■ Play/Stop", width=14, command=self._play_clicked).pack(side="left")
+        tk.Button(actions_left, text="▶/■ Play/Stop", width=14, command=self._play_clicked).pack(side="left")
         tk.Button(actions_right, text="Удалить", width=12, command=self._delete_clicked).pack(side="right")
 
         calls_frame = tk.LabelFrame(frame, text="Очередь вызова клиентов", padx=10, pady=10)
