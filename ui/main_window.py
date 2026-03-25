@@ -1,4 +1,5 @@
 import os
+import platform
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
@@ -21,6 +22,7 @@ class MainWindow:
 
     def __init__(self, root: tk.Tk):
         self.root = root
+        self._is_windows = platform.system() == "Windows"
         self.root.title(WINDOW_TITLE)
         self.root.resizable(False, False)
 
@@ -216,11 +218,11 @@ class MainWindow:
 
         tk.Label(devices_frame, text="Планировщик:").grid(row=0, column=0, sticky="w")
         self.device_menu = tk.OptionMenu(devices_frame, self.device_var, "")
-        self.device_menu.grid(row=0, column=1, sticky="w", padx=5)
+        self.device_menu.grid(row=0, column=1, sticky="ew", padx=5)
 
         tk.Label(devices_frame, text="Очередь вызовов:").grid(row=1, column=0, sticky="w", pady=(10, 0))
         self.client_calls_device_menu = tk.OptionMenu(devices_frame, self.client_calls_device_var, "")
-        self.client_calls_device_menu.grid(row=1, column=1, sticky="w", padx=5, pady=(10, 0))
+        self.client_calls_device_menu.grid(row=1, column=1, sticky="ew", padx=5, pady=(10, 0))
 
         volumes_frame = tk.LabelFrame(audio_tab, text="Настройка громкости", padx=10, pady=10)
         volumes_frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
@@ -620,8 +622,12 @@ class MainWindow:
         window.update_idletasks()
         width = window.winfo_reqwidth()
         height = window.winfo_reqheight()
+        if self._is_windows:
+            width = max(width, 760)
         if window is self._client_calls_settings_window:
             width = self.root.winfo_width()
+            if self._is_windows:
+                width = max(width, 760)
         window.geometry(f"{width}x{height}")
 
     def _extract_window_position(self, geometry: str) -> str:
@@ -651,6 +657,10 @@ class MainWindow:
 
         for name in options:
             menu.add_command(label=name, command=lambda value=name: variable.set(value))
+
+        if self._is_windows:
+            longest_option = max((len(name) for name in options), default=24)
+            option_menu.config(width=min(max(longest_option, 24), 48))
 
         if options:
             variable.set(selected if selected in options else options[0])
