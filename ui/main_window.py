@@ -629,11 +629,11 @@ class MainWindow:
         width = window.winfo_reqwidth()
         height = window.winfo_reqheight()
         if self._is_windows:
-            width = max(width, 760)
+            width = max(width, 700)
         if window is self._client_calls_settings_window:
             width = self.root.winfo_width()
             if self._is_windows:
-                width = max(width, 760)
+                width = max(width, 700)
         window.geometry(f"{width}x{height}")
 
     def _extract_window_position(self, geometry: str) -> str:
