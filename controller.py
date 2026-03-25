@@ -84,6 +84,8 @@ class AudioSchedulerController:
         self.window.on_autostart_toggle = self.change_autostart_enabled
         self.window.on_scheduler_notification_toggle = self.change_scheduler_notification_enabled
         self.window.on_client_calls_notification_toggle = self.change_client_calls_notification_enabled
+        self.window.on_hide_to_tray = self.hide_to_tray
+        self.window.on_quit_application = self.save_and_close
         self.window.on_close = self.handle_close_request
         self.window.on_window_unmap = self.handle_window_unmap
         self.window.on_window_configure = self.handle_window_configure
@@ -320,6 +322,12 @@ class AudioSchedulerController:
 
     def handle_close_request(self) -> None:
         self.platform_integration.request_close()
+
+    def hide_to_tray(self) -> None:
+        self.platform_integration.hide_window()
+
+    def save_and_close(self) -> None:
+        self.platform_integration.quit_application()
 
     def handle_window_unmap(self) -> None:
         self.platform_integration.handle_window_unmap()

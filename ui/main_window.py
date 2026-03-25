@@ -78,6 +78,8 @@ class MainWindow:
         self.on_autostart_toggle: Optional[Callable[[], None]] = None
         self.on_scheduler_notification_toggle: Optional[Callable[[], None]] = None
         self.on_client_calls_notification_toggle: Optional[Callable[[], None]] = None
+        self.on_hide_to_tray: Optional[Callable[[], None]] = None
+        self.on_quit_application: Optional[Callable[[], None]] = None
         self.on_close: Optional[Callable[[], None]] = None
         self.on_window_unmap: Optional[Callable[[], None]] = None
         self.on_window_configure: Optional[Callable[[], None]] = None
@@ -177,6 +179,11 @@ class MainWindow:
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
+
+        program_menu = tk.Menu(menubar, tearoff=0)
+        program_menu.add_command(label="Убрать в трей", command=self._hide_to_tray_clicked)
+        program_menu.add_command(label="Сохранить и закрыть", command=self._quit_application_clicked)
+        menubar.add_cascade(label="Программа", menu=program_menu)
 
         settings_menu = tk.Menu(menubar, tearoff=0)
         settings_menu.add_command(label="Настройки", command=self.show_client_calls_settings_window)
@@ -379,6 +386,14 @@ class MainWindow:
     def _play_notification_sound_clicked(self) -> None:
         if self.on_play_notification_sound:
             self.on_play_notification_sound()
+
+    def _hide_to_tray_clicked(self) -> None:
+        if self.on_hide_to_tray:
+            self.on_hide_to_tray()
+
+    def _quit_application_clicked(self) -> None:
+        if self.on_quit_application:
+            self.on_quit_application()
 
     def _client_calls_volume_changed(self, value: str) -> None:
         self._handle_volume_change(value, self.client_calls_volume_display_var, self.on_client_calls_volume_change)
