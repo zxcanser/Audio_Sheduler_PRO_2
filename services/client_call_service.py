@@ -10,7 +10,7 @@ import tkinter as tk
 from config import CLIENT_CALLS_LOG_FILE
 from models import ClientCall
 from services.playback_coordinator import PlaybackCoordinator, PlaybackTask
-from services.speech_synthesizer import SpeechSynthesizerService
+from services.recorded_call_builder import RecordedCallBuilderService
 
 
 class ClientCallService:
@@ -18,7 +18,7 @@ class ClientCallService:
         self,
         tk_root: tk.Tk,
         playback_coordinator: PlaybackCoordinator,
-        synthesizer: SpeechSynthesizerService,
+        call_builder: RecordedCallBuilderService,
         get_source_path: Callable[[], str],
         get_device_name: Callable[[], str],
         get_volume: Callable[[], float],
@@ -31,7 +31,7 @@ class ClientCallService:
     ):
         self.root = tk_root
         self.playback_coordinator = playback_coordinator
-        self.synthesizer = synthesizer
+        self.call_builder = call_builder
         self.get_source_path = get_source_path
         self.get_device_name = get_device_name
         self.get_volume = get_volume
@@ -125,18 +125,21 @@ class ClientCallService:
 
         for index in range(0, len(lines), 3):
             chunk = lines[index:index + 3]
-            if not chunk:
+            if len(chunk) < 3:
                 continue
 
-            counter = chunk[0]
-            ticket = chunk[1] if len(chunk) > 1 else ""
-            speech_message = " ".join(chunk)
+            start_choice, car_number, end_choice = chunk
 
             calls.append(
                 ClientCall(
-                    counter=counter,
-                    ticket=ticket,
-                    speech_message=speech_message,
+                    start_choice=start_choice,
+                    car_number=car_number,
+                    end_choice=end_choice,
+                    display_message=self.call_builder.build_display_text(
+                        start_choice,
+                        car_number,
+                        end_choice,
+                    ),
                 )
             )
 
@@ -165,14 +168,16 @@ class ClientCallService:
         self._emit_state_change()
 
         try:
-            temp_file = self.synthesizer.synthesize_to_file(
-                next_call.speech_text,
-                speech_rate=self.get_speech_rate(),
+            temp_file = self.call_builder.build_audio_file(
+                next_call.start_choice,
+                next_call.car_number,
+                next_call.end_choice,
+                playback_rate=self.get_speech_rate(),
             )
         except Exception as exc:
             self._current_call = None
             self._playback_requested = False
-            self.on_error(f"Не удалось озвучить вызов: {exc}")
+            self.on_error(f"Не удалось собрать вызов: {exc}")
             self._emit_state_change()
             self.root.after(0, self._play_next_if_idle)
             return

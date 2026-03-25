@@ -187,7 +187,6 @@ class MainWindow:
         window.title("Настройки")
         window.resizable(False, False)
         window.withdraw()
-        window.transient(self.root)
         window.protocol("WM_DELETE_WINDOW", self._hide_client_calls_settings_window)
 
         content = tk.Frame(window, padx=10, pady=10)
@@ -202,7 +201,7 @@ class MainWindow:
 
         notebook.add(audio_tab, text="Аудио")
         notebook.add(notifications_tab, text="Планировщик")
-        notebook.add(queue_tab, text="Очередь")
+        notebook.add(queue_tab, text="Вызовы")
 
         audio_tab.columnconfigure(0, weight=1)
         notifications_tab.columnconfigure(0, weight=1)
@@ -314,7 +313,7 @@ class MainWindow:
             command=self._autostart_toggled,
         ).grid(row=0, column=0, sticky="w")
 
-        queue_frame = tk.LabelFrame(queue_tab, text="Настройки очереди", padx=10, pady=10)
+        queue_frame = tk.LabelFrame(queue_tab, text="Настройки вызовов", padx=10, pady=10)
         queue_frame.grid(row=0, column=0, sticky="nsew")
         queue_frame.columnconfigure(1, weight=1)
 
@@ -328,7 +327,7 @@ class MainWindow:
         interval_entry.bind("<FocusOut>", lambda event: self._client_calls_interval_changed())
         interval_entry.bind("<Return>", self._client_calls_interval_submitted)
 
-        tk.Label(queue_frame, text="Скорость речи:").grid(row=2, column=0, sticky="w", pady=(12, 0))
+        tk.Label(queue_frame, text="Скорость воспроизведения:").grid(row=2, column=0, sticky="w", pady=(12, 0))
         speech_rate_frame = tk.Frame(queue_frame)
         speech_rate_frame.grid(row=2, column=1, columnspan=2, sticky="w", padx=5, pady=(12, 0))
         tk.Scale(
@@ -470,7 +469,7 @@ class MainWindow:
         self._fit_window_to_content(self._client_calls_settings_window)
         self._client_calls_settings_window.deiconify()
         self._client_calls_settings_window.lift()
-        self._client_calls_settings_window.focus_force()
+        self._client_calls_settings_window.focus_set()
 
     def set_selected_file(self, file_path: str) -> None:
         self._set_file_value(self.selected_file_path, self.selected_file_display, file_path)
@@ -621,6 +620,8 @@ class MainWindow:
         window.update_idletasks()
         width = window.winfo_reqwidth()
         height = window.winfo_reqheight()
+        if window is self._client_calls_settings_window:
+            width = self.root.winfo_width()
         window.geometry(f"{width}x{height}")
 
     def _extract_window_position(self, geometry: str) -> str:

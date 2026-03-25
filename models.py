@@ -40,9 +40,10 @@ class AppSettings:
 
 @dataclass
 class ClientCall:
-    counter: str
-    ticket: str
-    speech_message: str = ""
+    start_choice: str
+    car_number: str
+    end_choice: str
+    display_message: str = ""
     call_id: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -51,8 +52,8 @@ class ClientCall:
 
     @property
     def display_text(self) -> str:
-        return self.speech_text
+        return self.display_message or f"start_{self.start_choice} {self.car_number.upper()} end_{self.end_choice}"
 
     @property
     def speech_text(self) -> str:
-        return self.speech_message or f"Клиент {self.ticket}. Подойдите к окну {self.counter}."
+        return self.display_text

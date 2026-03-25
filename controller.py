@@ -10,9 +10,9 @@ from services.autostart_service import AutostartService
 from services.client_call_service import ClientCallService
 from services.platform_integration import PlatformIntegration
 from services.playback_coordinator import PlaybackCoordinator, PlaybackTask
+from services.recorded_call_builder import RecordedCallBuilderService
 from services.scheduler_service import SchedulerService
 from services.schedule_manager import ScheduleManager
-from services.speech_synthesizer import SpeechSynthesizerService
 from services.validation_service import ValidationError, ValidationService
 from ui.main_window import MainWindow
 
@@ -31,7 +31,7 @@ class AudioSchedulerController:
             player=self.player,
             get_interval_seconds=lambda: self.settings.client_calls_interval_seconds,
         )
-        self.speech_synthesizer = SpeechSynthesizerService()
+        self.recorded_call_builder = RecordedCallBuilderService()
         self.platform_integration = PlatformIntegration(root, WINDOW_TITLE, self.shutdown)
 
         self.settings = self.repository.load_settings()
@@ -48,7 +48,7 @@ class AudioSchedulerController:
         self.client_call_service = ClientCallService(
             tk_root=root,
             playback_coordinator=self.playback_coordinator,
-            synthesizer=self.speech_synthesizer,
+            call_builder=self.recorded_call_builder,
             get_source_path=self.window.get_client_calls_file,
             get_device_name=lambda: self.settings.client_calls_selected_device,
             get_volume=lambda: self.settings.client_calls_volume,
