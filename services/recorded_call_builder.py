@@ -56,7 +56,12 @@ class RecordedCallBuilderService:
             if symbol.isdigit():
                 if index == 1:
                     car_audio_files.append(self._audio_path("digits", f"{digit_prefix}{symbol}00"))
-                elif index == 2 and int(symbol) <= 1:
+                elif index in {2, 3} and normalized_number[1] == "0":
+                    if symbol == "0":
+                        car_audio_files.append(self._audio_path("digits", f"{digit_prefix}000"))
+                    else:
+                        car_audio_files.append(self._audio_path("digits", f"{digit_prefix}{symbol}"))
+                elif index == 2 and normalized_number[index - 1] != "0" and int(symbol) <= 1:
                     continue
                 elif index == 3 and normalized_number[index - 1] == "1":
                     car_audio_files.append(self._audio_path("digits", f"{digit_prefix}1{symbol}"))
