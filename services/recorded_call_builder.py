@@ -34,6 +34,7 @@ class RecordedCallBuilderService:
             elif current_sample_rate != sample_rate:
                 raise RuntimeError(f"Разная частота дискретизации у файлов вызова: {audio_path}")
 
+            data = self._time_stretch_audio(data, playback_rate)
             chunks.append(data)
 
         if not chunks or sample_rate is None:
@@ -42,8 +43,7 @@ class RecordedCallBuilderService:
         merged_audio = np.concatenate(chunks, axis=0)
         temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
         os.close(temp_fd)
-        stretched_audio = self._time_stretch_audio(merged_audio, playback_rate)
-        sf.write(temp_path, stretched_audio, sample_rate)
+        sf.write(temp_path, merged_audio, sample_rate)
         return temp_path
 
     def construct_message(self, start_choice: str, car_number: str, end_choice: str) -> list[str]:
