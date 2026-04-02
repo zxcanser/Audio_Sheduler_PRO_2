@@ -28,11 +28,7 @@ class PlatformIntegration:
             self._setup_macos_menu_bar()
 
     def request_close(self) -> None:
-        if self.platform in {"Windows", "Darwin"}:
-            self.hide_window()
-            return
-
-        self.quit_application()
+        self.hide_window()
 
     def handle_window_unmap(self) -> None:
         if self.platform != "Windows" or self._is_quitting:
