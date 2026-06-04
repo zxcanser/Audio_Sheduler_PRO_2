@@ -55,27 +55,8 @@ class AudioPlayer:
                 raise FileNotFoundError(f"Файл не найден: {file_path}")
 
             data, samplerate = sf.read(file_path, dtype="float32")
-
-            if data.ndim == 1:
-                pass
-            elif data.ndim == 2 and data.shape[1] > 2:
-                data = data[:, :2]
-
-            data *= volume
-
-            device_id = None
-            if device_name:
-                device_id = self.device_service.get_device_id_by_name(device_name)
-
-            # На macOS иногда выбранное устройство возвращает ошибку AUHAL -50.
-            # Поэтому если устройство не найдено — пробуем системное по умолчанию.
-            if device_id is None:
-                sd.play(data, samplerate)
-            else:
-                try:
-                    sd.play(data, samplerate, device=device_id)
-                except Exception:
-                    sd.play(data, samplerate)
+            data = self._normalize_audio_data(data) * volume
+            self._play_on_output_device(data, samplerate, device_name)
 
             sd.wait()
 
@@ -93,3 +74,22 @@ class AudioPlayer:
         sd.stop()
         with self._lock:
             self._is_playing = False
+
+    def _normalize_audio_data(self, data):
+        if data.ndim == 2 and data.shape[1] > 2:
+            return data[:, :2]
+        return data
+
+    def _play_on_output_device(self, data, samplerate: int, device_name: str) -> None:
+        device_id = self.device_service.get_device_id_by_name(device_name) if device_name else None
+
+        # На macOS иногда выбранное устройство возвращает ошибку AUHAL -50.
+        # Поэтому если устройство не найдено или сломалось — пробуем системное по умолчанию.
+        if device_id is None:
+            sd.play(data, samplerate)
+            return
+
+        try:
+            sd.play(data, samplerate, device=device_id)
+        except Exception:
+            sd.play(data, samplerate)

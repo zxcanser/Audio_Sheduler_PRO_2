@@ -56,3 +56,25 @@ class ValidationService:
             raise ValidationError("Интервал не может быть отрицательным")
 
         return interval
+
+    @staticmethod
+    def validate_host(value: str) -> str:
+        host = value.strip()
+        if not host:
+            raise ValidationError("Укажите адрес API сервера")
+        return host
+
+    @staticmethod
+    def validate_port(value: str) -> int:
+        raw = value.strip()
+        if not raw:
+            return 8765
+
+        if not raw.isdigit():
+            raise ValidationError("Порт API должен быть целым числом")
+
+        port = int(raw)
+        if not (1 <= port <= 65535):
+            raise ValidationError("Порт API должен быть в диапазоне 1-65535")
+
+        return port

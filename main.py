@@ -28,7 +28,7 @@ def main() -> None:
         shutdown_requested = True
         try:
             root.after(0, controller.shutdown)
-        except Exception:
+        except tk.TclError:
             instance_guard.release()
             raise SystemExit(0)
 

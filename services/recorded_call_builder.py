@@ -10,12 +10,21 @@ import soundfile as sf
 
 class RecordedCallBuilderService:
     NUMBER_SEGMENT_FADE_SECONDS = 0.012
+    START_LABELS = {
+        "1": "Клиент с авто",
+    }
+    END_LABELS = {
+        "1": "пожалуйста, пройдите к своему авто",
+        "2": "пожалуйста, пройдите в приёмку",
+    }
 
     def __init__(self) -> None:
         self.audio_root = self._resolve_audio_root()
 
     def build_display_text(self, start_choice: str, car_number: str, end_choice: str) -> str:
-        return f"start_{start_choice} {car_number.upper()} end_{end_choice}"
+        start_label = self._start_label(start_choice)
+        end_label = self._end_label(end_choice)
+        return f"{start_label} {car_number.upper()}, {end_label}"
 
     def build_audio_file(
         self,
@@ -23,6 +32,11 @@ class RecordedCallBuilderService:
         car_number: str,
         end_choice: str,
         playback_rate: float = 1.0,
+        trim_silence_enabled: bool = True,
+        silence_threshold_db: int = -42,
+        trim_leading_padding_ms: int = 20,
+        trim_trailing_padding_ms: int = 55,
+        symbol_pause_ms: int = 120,
         repeat_count: int = 1,
         pause_seconds: float = 0.0,
     ) -> str:
@@ -43,13 +57,21 @@ class RecordedCallBuilderService:
                 raise RuntimeError(f"Разная частота дискретизации у файлов вызова: {audio_path}")
 
             if is_number_segment:
+                if trim_silence_enabled:
+                    data = self._trim_silence(
+                        data,
+                        current_sample_rate,
+                        threshold_db=silence_threshold_db,
+                        leading_padding_ms=trim_leading_padding_ms,
+                        trailing_padding_ms=trim_trailing_padding_ms,
+                    )
                 data = self._time_stretch_audio(data, playback_rate)
                 data = self._apply_fade(data, current_sample_rate, self.NUMBER_SEGMENT_FADE_SECONDS)
 
             chunks.append(data)
             next_is_number_segment = index + 1 < len(audio_segments) and audio_segments[index + 1][1]
             if is_number_segment and next_is_number_segment:
-                pause_chunk = self._build_number_pause(current_sample_rate, data.shape[1], playback_rate)
+                pause_chunk = self._build_number_pause(current_sample_rate, data.shape[1], symbol_pause_ms)
                 if pause_chunk is not None:
                     chunks.append(pause_chunk)
 
@@ -160,6 +182,14 @@ class RecordedCallBuilderService:
             return self._audio_path("digits", "digit_00")
         return self._audio_path("digits", f"digit_{value}")
 
+    def _start_label(self, start_choice: str) -> str:
+        normalized_choice = str(start_choice).strip()
+        return self.START_LABELS.get(normalized_choice, f"Начало {normalized_choice}")
+
+    def _end_label(self, end_choice: str) -> str:
+        normalized_choice = str(end_choice).strip()
+        return self.END_LABELS.get(normalized_choice, f"Концовка {normalized_choice}")
+
     def _audio_path(self, folder: str, stem: str) -> str:
         for suffix in (".wav", ".mp3"):
             candidate = self.audio_root / folder / f"{stem}{suffix}"
@@ -199,13 +229,37 @@ class RecordedCallBuilderService:
         normalized = re.sub(r"\s+", "_", normalized)
         return normalized.casefold()
 
-    def _build_number_pause(self, sample_rate: int, channels: int, playback_rate: float) -> np.ndarray | None:
-        rate = max(playback_rate, 0.1)
-        pause_seconds = 0.18 / (rate ** 1.8)
+    def _build_number_pause(self, sample_rate: int, channels: int, pause_ms: int) -> np.ndarray | None:
+        pause_seconds = max(0, pause_ms) / 1000.0
         frame_count = max(0, int(round(sample_rate * pause_seconds)))
         if frame_count <= 0:
             return None
         return np.zeros((frame_count, channels), dtype="float32")
+
+    def _trim_silence(
+        self,
+        audio: np.ndarray,
+        sample_rate: int,
+        threshold_db: int,
+        leading_padding_ms: int,
+        trailing_padding_ms: int,
+    ) -> np.ndarray:
+        if len(audio) == 0:
+            return audio
+
+        mono_amplitude = np.max(np.abs(audio), axis=1)
+        threshold = 10 ** (max(-90, min(threshold_db, 0)) / 20.0)
+        active_frames = np.flatnonzero(mono_amplitude >= threshold)
+        if len(active_frames) == 0:
+            return audio
+
+        leading_padding = int(round(sample_rate * max(0, leading_padding_ms) / 1000.0))
+        trailing_padding = int(round(sample_rate * max(0, trailing_padding_ms) / 1000.0))
+        start = max(0, int(active_frames[0]) - leading_padding)
+        end = min(len(audio), int(active_frames[-1]) + trailing_padding + 1)
+        if start >= end:
+            return audio
+        return audio[start:end]
 
     def _resolve_audio_root(self) -> Path:
         candidates = [

@@ -5,9 +5,11 @@ from pathlib import Path
 
 
 APP_NAME = "AudioSchedulerPro"
+APP_VERSION = "2.3"
 WINDOW_TITLE = "Audio Scheduler PRO - система оповещений"
 APP_ROOT_DIR = Path(__file__).resolve().parent
 APP_ICON_FILE = str(APP_ROOT_DIR / "ASP_icon.ico")
+GITHUB_RELEASES_API_URL = "https://api.github.com/repos/zxcanser/Audio_Sheduler_PRO_2/releases/latest"
 
 
 def _get_app_data_dir() -> Path:
@@ -45,6 +47,7 @@ APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = str(APP_DATA_DIR / "config.json")
 SCHEDULE_FILE = str(APP_DATA_DIR / "schedule.json")
 CLIENT_CALLS_LOG_FILE = str(APP_DATA_DIR / "client_calls.log")
+ERROR_LOG_FILE = str(APP_DATA_DIR / "error.log")
 INSTANCE_LOCK_FILE = str(APP_DATA_DIR / "app.lock")
 
 LEGACY_CONFIG_FILES = [str(base_dir / "config.json") for base_dir in _get_legacy_base_dirs()]

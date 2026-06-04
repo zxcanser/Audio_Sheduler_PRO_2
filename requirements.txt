@@ -1,0 +1,7 @@
+certifi
+numpy
+pillow
+pyinstaller
+pystray
+sounddevice
+soundfile

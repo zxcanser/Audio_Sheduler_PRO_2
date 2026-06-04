@@ -22,6 +22,18 @@ class VoiceMakerVoice:
     voice_id: str
     language_code: str
     language_name: str = ""
+    engine: str = ""
+
+    @property
+    def supports_accent_code(self) -> bool:
+        normalized_voice_id = self.voice_id.lower()
+        normalized_engine = self.engine.lower()
+        return (
+            normalized_voice_id.startswith("ai1-")
+            or normalized_voice_id.startswith("pro1-")
+            or normalized_voice_id.startswith("pro2-")
+            or normalized_engine in {"ai1", "pro1", "pro2"}
+        )
 
 
 class VoiceMakerService:
@@ -41,9 +53,16 @@ class VoiceMakerService:
         VoiceMakerLanguage("Китайский", "zh-CN"),
         VoiceMakerLanguage("Мультиязычные Pro", "multi-lang"),
     ]
+    ACCENT_OPTIONS: list[VoiceMakerLanguage] = [
+        VoiceMakerLanguage("Без акцента", ""),
+        *LANGUAGES,
+    ]
 
     def get_languages(self) -> list[VoiceMakerLanguage]:
         return self.LANGUAGES[:]
+
+    def get_accents(self) -> list[VoiceMakerLanguage]:
+        return self.ACCENT_OPTIONS[:]
 
     def list_voices(self, api_key: str, language_code: str) -> list[VoiceMakerVoice]:
         payload = {"language": language_code} if language_code else {}
@@ -73,12 +92,14 @@ class VoiceMakerService:
                 or ""
             ).strip()
             language_name = str(item.get("LanguageName") or "").strip()
+            engine = str(item.get("Engine") or "").strip()
             voices.append(
                 VoiceMakerVoice(
                     label=label,
                     voice_id=voice_id,
                     language_code=language,
                     language_name=language_name,
+                    engine=engine,
                 )
             )
 
@@ -92,6 +113,8 @@ class VoiceMakerService:
         voice_id: str,
         language_code: str,
         master_volume: int = 14,
+        master_speed: int = 0,
+        accent_code: str = "",
     ) -> bytes:
         clean_text = text.strip()
         if not api_key:
@@ -113,9 +136,12 @@ class VoiceMakerService:
             "ResponseType": "stream",
             "Effect": "default",
             "MasterVolume": str(max(-20, min(master_volume, 20))),
-            "MasterSpeed": "0",
+            "MasterSpeed": str(max(-100, min(master_speed, 100))),
             "MasterPitch": "0",
         }
+        clean_accent = accent_code.strip()
+        if clean_accent:
+            payload["AccentCode"] = clean_accent
 
         request = urllib.request.Request(
             self.CONVERT_URL,

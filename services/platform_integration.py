@@ -23,7 +23,7 @@ class PlatformIntegration:
         self._macos_icon_temp_path: Optional[str] = None
 
     def start(self) -> None:
-        self.root.after(100, self._process_pending_actions)
+        self._schedule_pending_action_poll()
         if self.platform == "Darwin":
             self._setup_macos_menu_bar()
 
@@ -36,7 +36,7 @@ class PlatformIntegration:
 
         try:
             if self.root.state() == "iconic":
-                self.root.after(0, self.hide_window)
+                self._safe_after(0, self.hide_window)
         except tk.TclError:
             pass
 
@@ -88,30 +88,9 @@ class PlatformIntegration:
         self._pending_actions.put("quit")
 
     def _cleanup_ui_integrations(self) -> None:
-        if self._tray_icon is not None:
-            try:
-                self._tray_icon.visible = False
-                self._tray_icon.stop()
-            except Exception:
-                pass
-            self._tray_icon = None
-
-        if self._macos_icon_temp_path and os.path.exists(self._macos_icon_temp_path):
-            try:
-                os.remove(self._macos_icon_temp_path)
-            except OSError:
-                pass
-            self._macos_icon_temp_path = None
-
-        if self._status_item is not None:
-            try:
-                from AppKit import NSStatusBar
-
-                NSStatusBar.systemStatusBar().removeStatusItem_(self._status_item)
-            except Exception:
-                pass
-            self._status_item = None
-            self._status_delegate = None
+        self._stop_tray_icon()
+        self._remove_macos_temp_icon()
+        self._remove_macos_status_item()
 
     def _process_pending_actions(self) -> None:
         if self._is_quitting:
@@ -128,7 +107,7 @@ class PlatformIntegration:
             elif action == "quit":
                 self.quit_application()
 
-        self.root.after(100, self._process_pending_actions)
+        self._schedule_pending_action_poll()
 
     def _show_windows_tray_icon(self) -> None:
         if self._tray_icon is None:
@@ -207,7 +186,8 @@ class PlatformIntegration:
         app.activateIgnoringOtherApps_(True)
 
     def _load_tray_image(self) -> Image.Image:
-        return Image.open(self.icon_path)
+        with Image.open(self.icon_path) as image:
+            return image.copy()
 
     def _load_macos_status_image(self):
         if not os.path.exists(self.icon_path):
@@ -216,11 +196,11 @@ class PlatformIntegration:
         try:
             from AppKit import NSImage
 
-            image = Image.open(self.icon_path)
-            image = self._build_macos_template_icon(image)
+            with Image.open(self.icon_path) as image:
+                template_image = self._build_macos_template_icon(image)
             temp_fd, temp_path = tempfile.mkstemp(suffix=".png")
             os.close(temp_fd)
-            image.save(temp_path, format="PNG")
+            template_image.save(temp_path, format="PNG")
             self._macos_icon_temp_path = temp_path
 
             ns_image = NSImage.alloc().initByReferencingFile_(temp_path)
@@ -228,7 +208,7 @@ class PlatformIntegration:
                 ns_image.setSize_((18, 18))
                 ns_image.setTemplate_(True)
             return ns_image
-        except Exception:
+        except (ImportError, OSError, RuntimeError, ValueError):
             return None
 
     def _build_macos_template_icon(self, image: Image.Image) -> Image.Image:
@@ -253,3 +233,47 @@ class PlatformIntegration:
         alpha_channel = alpha_channel.point(lambda value: min(255, int(value * 1.35)))
         template.putalpha(alpha_channel)
         return template
+
+    def _schedule_pending_action_poll(self) -> None:
+        self._safe_after(100, self._process_pending_actions)
+
+    def _safe_after(self, delay_ms: int, callback: Callable[[], None]) -> None:
+        try:
+            self.root.after(delay_ms, callback)
+        except tk.TclError:
+            pass
+
+    def _stop_tray_icon(self) -> None:
+        if self._tray_icon is None:
+            return
+
+        try:
+            self._tray_icon.visible = False
+            self._tray_icon.stop()
+        except (AttributeError, OSError, RuntimeError):
+            pass
+        self._tray_icon = None
+
+    def _remove_macos_temp_icon(self) -> None:
+        if not self._macos_icon_temp_path or not os.path.exists(self._macos_icon_temp_path):
+            self._macos_icon_temp_path = None
+            return
+
+        try:
+            os.remove(self._macos_icon_temp_path)
+        except OSError:
+            pass
+        self._macos_icon_temp_path = None
+
+    def _remove_macos_status_item(self) -> None:
+        if self._status_item is None:
+            return
+
+        try:
+            from AppKit import NSStatusBar
+
+            NSStatusBar.systemStatusBar().removeStatusItem_(self._status_item)
+        except ImportError:
+            pass
+        self._status_item = None
+        self._status_delegate = None

@@ -8,6 +8,9 @@ class ScheduleManager:
     def __init__(self, entries: Optional[List[ScheduleEntry]] = None):
         self._entries: List[ScheduleEntry] = entries[:] if entries else []
 
+    def replace_entries(self, entries: List[ScheduleEntry]) -> None:
+        self._entries = entries[:]
+
     def get_all(self) -> List[ScheduleEntry]:
         return sorted(self._entries, key=lambda x: (x.time_str, x.file_name.lower()))
 
@@ -18,6 +21,26 @@ class ScheduleManager:
         entry = ScheduleEntry(time_str=time_str, file_path=file_path)
         self._entries.append(entry)
         return entry
+
+    def update_entry(self, entry_id: str, time_str: str, file_path: str) -> ScheduleEntry:
+        entry = self.get_by_id(entry_id)
+        if entry is None:
+            raise ValidationError("Запись не найдена")
+
+        if self._is_duplicate(time_str, file_path, ignore_entry_id=entry_id):
+            raise ValidationError("Такая запись уже существует")
+
+        entry.time_str = time_str
+        entry.file_path = file_path
+        return entry
+
+    def replace_file_path(self, old_file_path: str, new_file_path: str) -> int:
+        updated_count = 0
+        for entry in self._entries:
+            if entry.file_path == old_file_path:
+                entry.file_path = new_file_path
+                updated_count += 1
+        return updated_count
 
     def delete_entry(self, entry_id: str) -> None:
         self._entries = [e for e in self._entries if e.entry_id != entry_id]
