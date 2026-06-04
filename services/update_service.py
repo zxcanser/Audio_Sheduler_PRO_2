@@ -1,10 +1,12 @@
 import json
 import os
 import platform
+import re
 import subprocess
 import tempfile
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,9 +78,7 @@ class UpdateService:
                 raw_data = response.read().decode("utf-8")
         except urllib.error.HTTPError as error:
             if error.code == 403:
-                raise RuntimeError(
-                    "GitHub временно ограничил запросы или релиз недоступен публично"
-                ) from error
+                return self._fetch_latest_release_from_public_page()
             if error.code == 404:
                 raise RuntimeError("GitHub Release не найден") from error
             raise RuntimeError(f"GitHub вернул HTTP {error.code}") from error
@@ -92,6 +92,76 @@ class UpdateService:
         if not isinstance(parsed, dict):
             raise RuntimeError("GitHub вернул неожиданный ответ")
         return parsed
+
+    def _fetch_latest_release_from_public_page(self) -> dict:
+        repo_url = self._repository_web_url()
+        latest_url = f"{repo_url}/releases/latest"
+        request = urllib.request.Request(
+            latest_url,
+            headers={"User-Agent": "AudioSchedulerPro/1.0"},
+        )
+
+        try:
+            with self._urlopen(request, timeout=20) as response:
+                html = response.read().decode("utf-8", errors="replace")
+                final_url = response.geturl()
+        except urllib.error.URLError as error:
+            raise RuntimeError(f"Не удалось открыть страницу релиза GitHub: {error.reason}") from error
+
+        tag_name = self._tag_from_release_url(final_url)
+        if not tag_name:
+            tag_name = self._tag_from_release_html(html)
+        if not tag_name:
+            raise RuntimeError("GitHub Release не найден")
+
+        assets = self._fetch_release_assets_from_public_page(repo_url, tag_name)
+        html_url = f"{repo_url}/releases/tag/{urllib.parse.quote(tag_name, safe='')}"
+        return {
+            "tag_name": tag_name,
+            "name": tag_name,
+            "html_url": html_url,
+            "assets": assets,
+        }
+
+    def _fetch_release_assets_from_public_page(self, repo_url: str, tag_name: str) -> list[dict]:
+        assets_url = f"{repo_url}/releases/expanded_assets/{urllib.parse.quote(tag_name, safe='')}"
+        request = urllib.request.Request(
+            assets_url,
+            headers={"User-Agent": "AudioSchedulerPro/1.0"},
+        )
+
+        try:
+            with self._urlopen(request, timeout=20) as response:
+                html = response.read().decode("utf-8", errors="replace")
+        except urllib.error.URLError as error:
+            raise RuntimeError(f"Не удалось получить список файлов релиза: {error.reason}") from error
+
+        assets: list[dict] = []
+        for href in re.findall(r'href="([^"]+/releases/download/[^"]+\.exe)"', html, flags=re.IGNORECASE):
+            download_url = urllib.parse.urljoin(repo_url, href.replace("&amp;", "&"))
+            name = urllib.parse.unquote(download_url.rsplit("/", 1)[-1])
+            assets.append({"name": name, "browser_download_url": download_url})
+        return assets
+
+    def _repository_web_url(self) -> str:
+        parsed = urllib.parse.urlparse(self.releases_api_url)
+        parts = [part for part in parsed.path.split("/") if part]
+        if parsed.netloc != "api.github.com" or len(parts) < 2:
+            raise RuntimeError("Неверно настроена ссылка GitHub Releases")
+        return f"https://github.com/{parts[1]}/{parts[2]}"
+
+    def _tag_from_release_url(self, release_url: str) -> str:
+        marker = "/releases/tag/"
+        if marker not in release_url:
+            return ""
+        tag = release_url.split(marker, 1)[1].split("?", 1)[0].split("#", 1)[0]
+        return urllib.parse.unquote(tag).strip()
+
+    def _tag_from_release_html(self, html: str) -> str:
+        match = re.search(r"/releases/tag/([^\"?#<]+)", html)
+        if not match:
+            return ""
+        return urllib.parse.unquote(match.group(1)).strip()
 
     def _select_installer_asset(self, assets: list) -> dict | None:
         exe_assets = [asset for asset in assets if str(asset.get("name") or "").lower().endswith(".exe")]
