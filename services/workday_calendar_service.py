@@ -1,7 +1,10 @@
 from datetime import date, timedelta
+import json
 import threading
 import urllib.error
 import urllib.request
+
+from config import WORKDAY_CALENDAR_CACHE_FILE
 
 
 class WorkdayCalendarService:
@@ -14,6 +17,7 @@ class WorkdayCalendarService:
     def __init__(self) -> None:
         self._year_cache: dict[int, dict[date, int]] = {}
         self._lock = threading.Lock()
+        self._load_cache_from_disk()
 
     def get_day_status(self, target_date: date) -> int:
         return self.get_year_statuses(target_date.year)[target_date]
@@ -31,7 +35,26 @@ class WorkdayCalendarService:
         statuses = self._fetch_year_statuses(year)
         with self._lock:
             self._year_cache[year] = statuses
+            self._save_cache_to_disk_locked()
         return statuses.copy()
+
+    def get_cached_year_statuses(self, year: int) -> dict[date, int] | None:
+        with self._lock:
+            statuses = self._year_cache.get(year)
+            if statuses is None:
+                return None
+            return statuses.copy()
+
+    def get_fallback_day_status(self, target_date: date) -> int:
+        return self.DAY_OFF if target_date.weekday() >= 5 else self.WORKDAY
+
+    def get_fallback_year_statuses(self, year: int) -> dict[date, int]:
+        first_day = date(year, 1, 1)
+        days_count = (date(year + 1, 1, 1) - first_day).days
+        return {
+            first_day + timedelta(days=index): self.get_fallback_day_status(first_day + timedelta(days=index))
+            for index in range(days_count)
+        }
 
     def is_workday_status(self, status: int | None) -> bool:
         return status in {self.WORKDAY, self.SHORTENED_WORKDAY}
@@ -74,3 +97,64 @@ class WorkdayCalendarService:
         request = urllib.request.Request(url, headers={"User-Agent": "AudioSchedulerPro/1.0"})
         with urllib.request.urlopen(request, timeout=15) as response:
             return response.read().decode("utf-8").strip()
+
+    def _load_cache_from_disk(self) -> None:
+        try:
+            with open(WORKDAY_CALENDAR_CACHE_FILE, "r", encoding="utf-8") as cache_file:
+                raw_cache = json.load(cache_file)
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return
+
+        if not isinstance(raw_cache, dict):
+            return
+
+        loaded_cache: dict[int, dict[date, int]] = {}
+        for year_text, year_data in raw_cache.items():
+            try:
+                year = int(year_text)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(year_data, str):
+                continue
+
+            statuses = self._parse_year_statuses(year, year_data)
+            if statuses:
+                loaded_cache[year] = statuses
+
+        with self._lock:
+            self._year_cache.update(loaded_cache)
+
+    def _save_cache_to_disk_locked(self) -> None:
+        serialized_cache: dict[str, str] = {}
+        for year, statuses in self._year_cache.items():
+            first_day = date(year, 1, 1)
+            expected_days = (date(year + 1, 1, 1) - first_day).days
+            year_values = []
+            for index in range(expected_days):
+                current_day = first_day + timedelta(days=index)
+                status = statuses.get(current_day)
+                if status not in {self.WORKDAY, self.DAY_OFF, self.SHORTENED_WORKDAY}:
+                    break
+                year_values.append(str(status))
+            if len(year_values) == expected_days:
+                serialized_cache[str(year)] = "".join(year_values)
+
+        try:
+            with open(WORKDAY_CALENDAR_CACHE_FILE, "w", encoding="utf-8") as cache_file:
+                json.dump(serialized_cache, cache_file, ensure_ascii=False, indent=2)
+        except OSError:
+            return
+
+    def _parse_year_statuses(self, year: int, raw_data: str) -> dict[date, int]:
+        if not raw_data or any(symbol not in {"0", "1", "2"} for symbol in raw_data):
+            return {}
+
+        first_day = date(year, 1, 1)
+        expected_days = (date(year + 1, 1, 1) - first_day).days
+        if len(raw_data) != expected_days:
+            return {}
+
+        return {
+            first_day + timedelta(days=index): int(symbol)
+            for index, symbol in enumerate(raw_data)
+        }

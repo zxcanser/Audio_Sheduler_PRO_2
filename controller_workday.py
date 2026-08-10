@@ -27,7 +27,8 @@ def _refresh_workday_status_worker(controller, target_date: date) -> None:
     except Exception as error:
         cached_status = controller.workday_calendar_service.get_cached_day_status(target_date)
         if cached_status is None:
-            controller._post_to_ui(controller._finish_workday_status, target_date, None, str(error))
+            fallback_status = controller.workday_calendar_service.get_fallback_day_status(target_date)
+            controller._post_to_ui(controller._finish_workday_status, target_date, fallback_status, str(error))
             return
         controller._post_to_ui(controller._finish_workday_status, target_date, cached_status, "")
         return
@@ -72,7 +73,12 @@ def _load_workday_calendar_worker(controller, year: int) -> None:
     try:
         statuses = controller.workday_calendar_service.get_year_statuses(year)
     except Exception as error:
-        controller._post_to_ui(controller._finish_workday_calendar, year, {}, str(error))
+        cached_statuses = controller.workday_calendar_service.get_cached_year_statuses(year)
+        if cached_statuses is None:
+            fallback_statuses = controller.workday_calendar_service.get_fallback_year_statuses(year)
+            controller._post_to_ui(controller._finish_workday_calendar, year, fallback_statuses, str(error))
+            return
+        controller._post_to_ui(controller._finish_workday_calendar, year, cached_statuses, "")
         return
 
     controller._post_to_ui(controller._finish_workday_calendar, year, statuses, "")
@@ -80,7 +86,5 @@ def _load_workday_calendar_worker(controller, year: int) -> None:
 
 def _finish_workday_calendar(controller, year: int, statuses: dict[date, int], error_message: str) -> None:
     if error_message:
-        controller.window.close_workday_calendar()
-        controller.window.show_error(f"Не удалось загрузить календарь: {error_message}")
-        return
+        controller._report_runtime_error(f"Календарь показан без сервиса isdayoff.ru: {error_message}")
     controller.window.show_workday_calendar(year, statuses)

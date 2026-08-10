@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 APP_NAME = "AudioSchedulerPro"
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.3.2"
 WINDOW_TITLE = "Audio Scheduler PRO - система оповещений"
 APP_ROOT_DIR = Path(__file__).resolve().parent
 APP_ICON_FILE = str(APP_ROOT_DIR / "ASP_icon.ico")
@@ -49,6 +49,7 @@ SCHEDULE_FILE = str(APP_DATA_DIR / "schedule.json")
 CLIENT_CALLS_LOG_FILE = str(APP_DATA_DIR / "client_calls.log")
 ERROR_LOG_FILE = str(APP_DATA_DIR / "error.log")
 INSTANCE_LOCK_FILE = str(APP_DATA_DIR / "app.lock")
+WORKDAY_CALENDAR_CACHE_FILE = str(APP_DATA_DIR / "workday_calendar_cache.json")
 
 LEGACY_CONFIG_FILES = [str(base_dir / "config.json") for base_dir in _get_legacy_base_dirs()]
 LEGACY_SCHEDULE_FILES = [str(base_dir / "schedule.json") for base_dir in _get_legacy_base_dirs()]

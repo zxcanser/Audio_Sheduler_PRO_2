@@ -118,7 +118,7 @@ def build_main_window(window) -> None:
 
     stamp_label = tk.Label(
         frame,
-        text="ASP v2.3.1 builded by sega",
+        text="ASP v2.3.2 builded by sega",
         font=("TkDefaultFont", 8, "italic"),
         fg="#555555",
     )
