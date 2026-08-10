@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 APP_NAME = "AudioSchedulerPro"
-APP_VERSION = "2.3.2"
+APP_VERSION = "2.3.3"
 WINDOW_TITLE = "Audio Scheduler PRO - система оповещений"
 APP_ROOT_DIR = Path(__file__).resolve().parent
 APP_ICON_FILE = str(APP_ROOT_DIR / "ASP_icon.ico")

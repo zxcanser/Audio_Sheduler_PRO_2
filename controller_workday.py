@@ -16,8 +16,12 @@ def _refresh_workday_status_loop(controller) -> None:
     if controller._workday_status_loading:
         return
 
+    offline_status = controller.workday_calendar_service.get_offline_day_status(today)
+    controller._today_workday_date = today
+    controller._today_workday_status = offline_status
+    controller.window.set_workday_status(offline_status)
+
     controller._workday_status_loading = True
-    controller.window.set_workday_status(None)
     controller._start_worker(controller._refresh_workday_status_worker, today)
 
 
@@ -25,12 +29,8 @@ def _refresh_workday_status_worker(controller, target_date: date) -> None:
     try:
         status = controller.workday_calendar_service.get_day_status(target_date)
     except Exception as error:
-        cached_status = controller.workday_calendar_service.get_cached_day_status(target_date)
-        if cached_status is None:
-            fallback_status = controller.workday_calendar_service.get_fallback_day_status(target_date)
-            controller._post_to_ui(controller._finish_workday_status, target_date, fallback_status, str(error))
-            return
-        controller._post_to_ui(controller._finish_workday_status, target_date, cached_status, "")
+        offline_status = controller.workday_calendar_service.get_offline_day_status(target_date)
+        controller._post_to_ui(controller._finish_workday_status, target_date, offline_status, str(error))
         return
 
     controller._post_to_ui(controller._finish_workday_status, target_date, status, "")

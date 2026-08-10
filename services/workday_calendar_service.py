@@ -26,6 +26,12 @@ class WorkdayCalendarService:
         with self._lock:
             return self._year_cache.get(target_date.year, {}).get(target_date)
 
+    def get_offline_day_status(self, target_date: date) -> int:
+        cached_status = self.get_cached_day_status(target_date)
+        if cached_status is not None:
+            return cached_status
+        return self.get_fallback_day_status(target_date)
+
     def get_year_statuses(self, year: int) -> dict[date, int]:
         with self._lock:
             cached_statuses = self._year_cache.get(year)
@@ -95,7 +101,7 @@ class WorkdayCalendarService:
 
     def _read_url(self, url: str) -> str:
         request = urllib.request.Request(url, headers={"User-Agent": "AudioSchedulerPro/1.0"})
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=5) as response:
             return response.read().decode("utf-8").strip()
 
     def _load_cache_from_disk(self) -> None:
