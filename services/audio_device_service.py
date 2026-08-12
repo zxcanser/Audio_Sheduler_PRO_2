@@ -5,8 +5,10 @@ import sounddevice as sd
 
 
 class AudioDeviceService:
+    DEFAULT_OUTPUT_DEVICE_NAME = "Системное устройство по умолчанию"
+
     def get_output_device_names(self) -> List[str]:
-        devices = sd.query_devices()
+        devices = self._query_devices()
         output_devices = [
             self._build_device_info(index, device)
             for index, device in enumerate(devices)
@@ -14,7 +16,7 @@ class AudioDeviceService:
         ]
 
         if platform.system() != "Windows":
-            return [device["name"] for device in output_devices]
+            return self._with_default_output_device([device["name"] for device in output_devices])
 
         deduplicated_devices: dict[str, dict] = {}
         for device in output_devices:
@@ -23,7 +25,7 @@ class AudioDeviceService:
             if existing is None or self._get_windows_device_rank(device) < self._get_windows_device_rank(existing):
                 deduplicated_devices[dedupe_key] = device
 
-        return [device["name"] for device in deduplicated_devices.values()]
+        return self._with_default_output_device([device["name"] for device in deduplicated_devices.values()])
 
     def refresh_output_device_names(self) -> List[str]:
         try:
@@ -35,9 +37,12 @@ class AudioDeviceService:
         return self.get_output_device_names()
 
     def get_device_id_by_name(self, device_name: str) -> Optional[int]:
+        if not device_name or device_name == self.DEFAULT_OUTPUT_DEVICE_NAME:
+            return None
+
         devices = [
             self._build_device_info(index, device)
-            for index, device in enumerate(sd.query_devices())
+            for index, device in enumerate(self._query_devices())
             if device["max_output_channels"] > 0
         ]
 
@@ -58,6 +63,13 @@ class AudioDeviceService:
             return best_device["id"]
 
         return None
+
+    def _query_devices(self):
+        return sd.query_devices()
+
+    def _with_default_output_device(self, device_names: List[str]) -> List[str]:
+        unique_names = [name for name in device_names if name and name != self.DEFAULT_OUTPUT_DEVICE_NAME]
+        return [self.DEFAULT_OUTPUT_DEVICE_NAME, *unique_names]
 
     def _build_device_info(self, device_id: int, device) -> dict:
         hostapis = sd.query_hostapis()

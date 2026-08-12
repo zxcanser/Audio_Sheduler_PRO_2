@@ -36,10 +36,6 @@ def preview_client_calls_text_voice(controller) -> None:
         controller.window.show_error(str(error))
         return
 
-    if not controller.settings.generator_selected_device:
-        controller.window.show_error("Выберите аудиоустройство для генератора")
-        return
-
     voice_id = controller.settings.client_calls_text_voice_id or controller.settings.generator_voice_id
     if not voice_id:
         controller.window.show_error("Сначала выберите голос для произвольного текста")
@@ -130,10 +126,6 @@ def generate_ai_speech(controller) -> None:
     if not text.strip():
         controller.window.show_error("Введите текст для генерации")
         return
-    if not controller.settings.generator_selected_device:
-        controller.window.show_error("Выберите аудиоустройство для генератора")
-        return
-
     request_signature = controller._build_generator_request_signature(text)
     if controller._generated_voice_bytes and request_signature == controller._generated_voice_signature:
         controller._play_generated_audio(controller._generated_voice_bytes)
@@ -171,9 +163,6 @@ def _finish_generator_error(controller, message: str) -> None:
 
 def _play_generated_audio(controller, audio_bytes: bytes) -> None:
     device_name = controller.settings.generator_selected_device
-    if not device_name:
-        controller.window.show_error("Не выбрано аудиоустройство для генератора")
-        return
 
     temp_fd, temp_path = tempfile.mkstemp(suffix=".mp3")
     with os.fdopen(temp_fd, "wb") as temp_file:

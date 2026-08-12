@@ -25,10 +25,6 @@ def _play_file(
         controller._report_runtime_error(f"Не найден файл планировщика: {file_name}")
         return
 
-    if not controller.settings.selected_device:
-        controller.window.show_error("Не выбрано аудиоустройство")
-        return
-
     display_call = ClientCall(
         start_choice="",
         car_number="",

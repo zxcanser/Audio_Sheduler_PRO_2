@@ -1,6 +1,6 @@
 #define MyAppName "AudioSchedulerPRO"
 #ifndef MyAppVersion
-#define MyAppVersion "2.3.3"
+#define MyAppVersion "2.3.4"
 #endif
 #define MyAppPublisher "sega"
 #define MyAppExeName "AudioSchedulerPRO.exe"
